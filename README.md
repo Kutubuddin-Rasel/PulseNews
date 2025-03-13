@@ -1,4 +1,4 @@
-# NewsApp
+# PulseNews
 
 NewsApp is an Android news application built with Kotlin that delivers real-time news from various categories using the NewsAPI. The app offers an engaging user experience by displaying top headlines, allowing comprehensive news searches, and providing the ability to save articles for offline reading.
 
