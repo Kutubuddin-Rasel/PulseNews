@@ -1,5 +1,9 @@
 package com.example.newsapp.Navigation
 
+import androidx.compose.ui.graphics.vector.ImageVector
 
-data class detail(val route: String, val screenName: String, val image: Int)
-
+data class NavigationItem(
+    val route: String,
+    val screenName: String,
+    val icon: ImageVector
+)

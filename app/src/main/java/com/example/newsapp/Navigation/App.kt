@@ -1,114 +1,114 @@
 package com.example.newsapp.Navigation
 
-import android.util.Log
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Bookmarks
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.newsapp.R
 import com.example.newsapp.Routes
-import com.example.newsapp.Screen.EveryNews
+import com.example.newsapp.Screen.ArticleDetailScreen
+import com.example.newsapp.Screen.HomeScreen
 import com.example.newsapp.Screen.SavedArticle
-import com.example.newsapp.Screen.TopHeadlines
+import com.example.newsapp.Screen.SettingsScreen
+import com.example.newsapp.Screen.NotificationPreferencesScreen
 import com.example.newsapp.Screen.WebScreen
-import com.example.newsapp.ViewModel.StateViewModel
 
 @Composable
 fun App() {
     val navController = rememberNavController()
-    val viewModel:StateViewModel= viewModel()
-    val navItemList = listOf(
-        detail(Routes.topHeadlines, "Top Headlines",R.drawable.head),
-        detail(Routes.everything, "Everything",R.drawable.everything),
-        detail(Routes.saveArticle, "Save Article",R.drawable.save)
+    val navItems = listOf(
+        NavigationItem(Routes.home, "Home", Icons.Outlined.Home),
+        NavigationItem(Routes.saved, "Saved", Icons.Outlined.Bookmarks),
+        NavigationItem(Routes.settings, "Settings", Icons.Outlined.Settings)
     )
+
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = currentBackStackEntry?.destination?.route
+    val showBottomBar = currentRoute in setOf(Routes.home, Routes.saved, Routes.settings)
 
     Scaffold(
         bottomBar = {
-            BottomNavigationBar(navController = navController, navItemList = navItemList,viewModel)
+            if (showBottomBar) {
+                NavigationBar(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant) {
+                    navItems.forEach { item ->
+                        NavigationBarItem(
+                            selected = currentRoute == item.route,
+                            onClick = {
+                                navController.navigate(item.route) {
+                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            icon = { androidx.compose.material3.Icon(item.icon, contentDescription = item.screenName) },
+                            label = { Text(item.screenName) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = androidx.compose.material3.MaterialTheme.colorScheme.onSecondaryContainer,
+                                unselectedIconColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                                selectedTextColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
+                                unselectedTextColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                                indicatorColor = androidx.compose.material3.MaterialTheme.colorScheme.secondaryContainer
+                            )
+                        )
+                    }
+                }
+            }
         }
     ) { paddingValues ->
-        NavHostContainer(navController = navController, modifier = Modifier.padding(paddingValues),viewModel)
-    }
-}
-
-@Composable
-fun BottomNavigationBar(navController: NavHostController, navItemList: List<detail>,viewModel: StateViewModel) {
-    val currentBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = currentBackStackEntry?.destination?.route
-    NavigationBar(
-       containerColor = Color(0xFF1AAF9F),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        navItemList.forEach { detail ->
-            NavigationBarItem(
-                selected = currentRoute == detail.route,
-                onClick = {
-                    if(detail.route==Routes.saveArticle)
-                    {viewModel.changeState(true)}
-                    else{viewModel.changeState(false)}
-                    navController.navigate(detail.route) {
-                        popUpTo(navController.graph.startDestinationId) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
+        NavHost(
+            navController = navController,
+            startDestination = Routes.home,
+            modifier = Modifier.padding(bottom = if (showBottomBar) paddingValues.calculateBottomPadding() else 0.dp)
+        ) {
+            composable(Routes.home) { HomeScreen(navController) }
+            composable(Routes.saved) { SavedArticle(navController) }
+            composable(Routes.settings) { 
+                SettingsScreen(
+                    onNavigateToNotifications = {
+                        navController.navigate(Routes.notificationPreferences)
+                    },
+                    onNavigateToAlgorithm = {
+                        navController.navigate(Routes.algorithmPreferences)
                     }
-                },
-                icon = { Image(painter = painterResource(detail.image),"", modifier = Modifier.size(40.dp)) },
-                label = { Text(detail.screenName, fontSize = 15.sp) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Color.White, // Color of the selected icon
-                    unselectedIconColor = Color.Gray, // Color of the unselected icon
-                    selectedTextColor = Color.White, // Color of the selected label text
-                    unselectedTextColor = Color.Gray, // Color of the unselected label text
-                    indicatorColor = Color.Transparent
-                )
-            )
-        }
-    }
-}
+                ) 
+            }
+            composable(Routes.notificationPreferences) {
+                NotificationPreferencesScreen(onNavigateBack = {
+                    navController.popBackStack()
+                })
+            }
+            composable(Routes.algorithmPreferences) {
+                com.example.newsapp.Screen.AlgorithmPreferencesScreen()
+            }
 
-@Composable
-fun NavHostContainer(navController: NavHostController, modifier: Modifier,viewModel: StateViewModel) {
-    val state = viewModel.state.collectAsState()
-    NavHost(navController = navController, startDestination = Routes.topHeadlines, modifier = modifier) {
-        composable(Routes.topHeadlines) { TopHeadlines(navController,state.value) }
-        composable(Routes.everything) { EveryNews(navController,state.value) }
-        composable(Routes.saveArticle) { SavedArticle(navController,state.value) }
-        composable(
-            route = "${Routes.webpage}/{url}",
-            arguments = listOf(
-                navArgument("url",) { type = NavType.StringType }
-            )
-        ) { backStackEntry ->
-            val encodedUrl = backStackEntry.arguments?.getString("url")
-          //  val url = java.net.URLDecoder.decode(encodedUrl, StandardCharsets.UTF_8.toString())
-            if (encodedUrl != null) {
-                WebScreen(encodedUrl)
+            composable(
+                route = Routes.articleDetailPattern,
+                arguments = listOf(navArgument(Routes.articleUrlArg) { type = NavType.StringType })
+            ) {
+                ArticleDetailScreen(navController)
+            }
+
+            composable(
+                route = Routes.webPagePattern,
+                arguments = listOf(navArgument(Routes.articleUrlArg) { type = NavType.StringType })
+            ) {
+                WebScreen(navController)
             }
         }
     }
