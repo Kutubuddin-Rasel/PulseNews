@@ -1,18 +1,21 @@
 package com.example.newsapp.module
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "Article")
+@Entity(
+    tableName = "saved_articles",
+    indices = [Index(value = ["url"], unique = true)]
+)
 data class Article(
-    @PrimaryKey(autoGenerate = true)
-    var id:Int?=null,
-    val author: String,
-    val content: String,
-    val description: String,
-    val publishedAt: String,
+    @PrimaryKey
+    val url: String,
+    val author: String?,
+    val content: String?,
+    val description: String?,
+    val publishedAt: String?,
     val source: Source,
     val title: String,
-    val url: String,
-    val urlToImage: String
+    val urlToImage: String?
 )
