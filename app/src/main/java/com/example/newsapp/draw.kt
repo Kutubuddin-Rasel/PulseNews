@@ -240,13 +240,13 @@ fun draw() {
         val isExpanded = remember { mutableStateOf(false) }
         val selectedTest = remember { mutableStateOf("Nothing") }
         ExposedDropdownMenuBox(expanded = isExpanded.value, onExpandedChange = {isExpanded.value=!isExpanded.value}) {
-            TextField(modifier = Modifier.menuAnchor(),
+            TextField(modifier = Modifier.menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true),
                 value = selectedTest.value,
                 onValueChange = {},
                 readOnly = true,
                 trailingIcon = {ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded.value)}
                 )
-            ExposedDropdownMenuBox(isExpanded.value,{isExpanded.value=false}) {
+            ExposedDropdownMenu(expanded = isExpanded.value, onDismissRequest = { isExpanded.value=false }) {
                 sortlist.forEachIndexed { index, s ->
                     DropdownMenuItem(
                         text = { Text(s) },
