@@ -23,7 +23,14 @@ fun ArticleDto.toDomainOrNull(): Article? {
             name = source?.name?.trim().orEmpty().ifEmpty { "Unknown" }
         ),
         title = cleanedTitle,
-        urlToImage = urlToImage
+        urlToImage = urlToImage,
+        provenance = provenance?.let {
+            com.example.newsapp.domain.model.Provenance(
+                status = try { com.example.newsapp.domain.model.VerificationStatus.valueOf(it.status ?: "UNVERIFIED") } catch(e: Exception) { com.example.newsapp.domain.model.VerificationStatus.UNVERIFIED },
+                verificationMethod = it.verificationMethod,
+                trustedSigner = it.trustedSigner
+            )
+        }
     )
 }
 
@@ -45,7 +52,14 @@ fun com.example.newsapp.data.remote.dto.PulseArticleDto.toDomainOrNull(): Articl
             name = source.trim().ifEmpty { "Unknown" }
         ),
         title = cleanedTitle,
-        urlToImage = null
+        urlToImage = null,
+        provenance = provenance?.let {
+            com.example.newsapp.domain.model.Provenance(
+                status = try { com.example.newsapp.domain.model.VerificationStatus.valueOf(it.status ?: "UNVERIFIED") } catch(e: Exception) { com.example.newsapp.domain.model.VerificationStatus.UNVERIFIED },
+                verificationMethod = it.verificationMethod,
+                trustedSigner = it.trustedSigner
+            )
+        }
     )
 }
 
@@ -63,7 +77,10 @@ fun Article.toCacheEntity(feedKey: String, page: Int, sortOrder: Int, fetchedAt:
         title = title,
         urlToImage = urlToImage,
         sortOrder = sortOrder,
-        fetchedAt = fetchedAt
+        fetchedAt = fetchedAt,
+        verificationStatus = provenance?.status?.name ?: "UNVERIFIED",
+        signatureProtocol = provenance?.verificationMethod,
+        trustedSigner = provenance?.trustedSigner
     )
 }
 
@@ -76,6 +93,11 @@ fun CachedFeedArticleEntity.toDomainArticle(): Article {
         publishedAt = publishedAt,
         source = Source(sourceId, sourceName),
         title = title,
-        urlToImage = urlToImage
+        urlToImage = urlToImage,
+        provenance = com.example.newsapp.domain.model.Provenance(
+            status = try { com.example.newsapp.domain.model.VerificationStatus.valueOf(verificationStatus) } catch(e: Exception) { com.example.newsapp.domain.model.VerificationStatus.UNVERIFIED },
+            verificationMethod = signatureProtocol,
+            trustedSigner = trustedSigner
+        )
     )
 }
