@@ -7,7 +7,7 @@ import com.example.newsapp.module.Article
 
 @Database(
     entities = [Article::class, CachedFeedArticleEntity::class, CachedFeedFtsEntity::class, RemoteKeys::class],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 @TypeConverters(TypeConverter::class)
