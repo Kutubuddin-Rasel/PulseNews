@@ -19,6 +19,12 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
 import javax.inject.Inject
+import com.example.newsapp.data.repository.PrivacyPreferencesRepository
+import com.example.newsapp.data.repository.AlgorithmPreferencesRepository
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 enum class FeedMode { FOR_YOU, TRENDING }
 
@@ -34,13 +40,6 @@ data class HomeUiState(
     val isRefreshing: Boolean = false,
     val event: String? = null
 )
-
-import com.example.newsapp.data.repository.PrivacyPreferencesRepository
-import com.example.newsapp.data.repository.AlgorithmPreferencesRepository
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
