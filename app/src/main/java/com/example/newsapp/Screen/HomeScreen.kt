@@ -98,8 +98,12 @@ fun HomeScreen(navController: NavController) {
             }
     }
 
-    LaunchedEffect(uiState.isRefreshing) {
-        if (uiState.isRefreshing) {
+    val articles = viewModel.feed.androidx.paging.compose.collectAsLazyPagingItems()
+    val loadState = articles.loadState
+    val isCurrentlyRefreshing = loadState.refresh is androidx.paging.LoadState.Loading
+
+    LaunchedEffect(isCurrentlyRefreshing) {
+        if (isCurrentlyRefreshing) {
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         }
     }
@@ -127,23 +131,47 @@ fun HomeScreen(navController: NavController) {
                     exit = shrinkVertically() + fadeOut()
                 ) {
                     HomeHeader(
-                        onRefresh = viewModel::refresh,
+                        onRefresh = { 
+                            // Only allow network refresh if we are on "For You" with no filters
+                            if (uiState.filter.categoryId == 1 && uiState.filter.activeQuery.isEmpty() && uiState.filter.selectedSource == null) {
+                                articles.refresh()
+                            } else {
+                                Toast.makeText(context, "Refresh only available in 'For You' mode.", Toast.LENGTH_SHORT).show()
+                            }
+                        },
                         scrollBehavior = scrollBehavior
                     )
+                }
+            },
+            floatingActionButton = {
+                AnimatedVisibility(
+                    visible = isHeaderVisible,
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    FloatingActionButton(
+                        onClick = { showFilterSheet = true },
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    ) {
+                        Icon(imageVector = Icons.Filled.Search, contentDescription = "Filter and Search")
+                    }
                 }
             },
             containerColor = Color.Transparent
         ) { paddingValues ->
             PullToRefreshBox(
-                isRefreshing = uiState.isRefreshing,
-                onRefresh = viewModel::refresh,
+                isRefreshing = isCurrentlyRefreshing,
+                onRefresh = { 
+                    if (uiState.filter.categoryId == 1 && uiState.filter.activeQuery.isEmpty() && uiState.filter.selectedSource == null) {
+                        articles.refresh()
+                    }
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    val articles = viewModel.feed.androidx.paging.compose.collectAsLazyPagingItems()
-                    val loadState = articles.loadState
                     
                     if (loadState.refresh is androidx.paging.LoadState.Loading) {
                         FeedSkeleton()
@@ -157,8 +185,13 @@ fun HomeScreen(navController: NavController) {
                     } else if (articles.itemCount == 0) {
                         EmptyState(
                             message = "No articles found.",
-                            actionText = "Refresh",
-                            onAction = { articles.refresh() }
+                            actionText = "Clear Filters",
+                            onAction = {
+                                viewModel.setCategory(1)
+                                viewModel.setSource(null)
+                                viewModel.updateQueryInput("")
+                                viewModel.submitSearch()
+                            }
                         )
                     } else {
                         LazyColumn(
@@ -174,7 +207,10 @@ fun HomeScreen(navController: NavController) {
                                 if (article != null) {
                                     ArticleCard(
                                         article = article,
-                                        onClick = { navController.navigateToArticleDetail(article.url) }
+                                        onClick = { 
+                                            viewModel.trackArticleClick()
+                                            navController.navigateToArticleDetail(article.url) 
+                                        }
                                     )
                                 }
                             }
@@ -193,6 +229,21 @@ fun HomeScreen(navController: NavController) {
                         }
                     }
                 }
+            }
+
+            if (showFilterSheet) {
+                val availableSources by viewModel.availableSources.collectAsState()
+                com.example.newsapp.ui.components.FeedFilterBottomSheet(
+                    categoryId = uiState.filter.categoryId,
+                    query = uiState.filter.queryInput,
+                    selectedSource = uiState.filter.selectedSource,
+                    availableSources = availableSources,
+                    onCategoryChange = viewModel::setCategory,
+                    onQueryChange = viewModel::updateQueryInput,
+                    onSourceChange = viewModel::setSource,
+                    onSearch = viewModel::submitSearch,
+                    onDismissRequest = { showFilterSheet = false }
+                )
             }
         }
     }
