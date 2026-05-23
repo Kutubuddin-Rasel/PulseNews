@@ -24,6 +24,8 @@ import com.example.newsapp.domain.util.ConnectivityMonitor
 import com.example.newsapp.domain.util.OfflineHtmlCache
 import com.example.newsapp.domain.util.ParsedArticle
 import com.example.newsapp.domain.util.HtmlParser
+import com.example.newsapp.domain.util.tts.TtsEngine
+import com.example.newsapp.data.util.EngagementTracker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOn
 
@@ -33,13 +35,30 @@ sealed class ReaderState {
     data class Error(val message: String) : ReaderState()
 }
 
+sealed class AiState {
+    object Idle : AiState()
+    object Loading : AiState()
+    data class Success(val summary: String) : AiState()
+    data class Error(val message: String) : AiState()
+}
+
+sealed class AudioState {
+    object Idle : AudioState()
+    object Synthesizing : AudioState()
+    data class Ready(val uri: android.net.Uri) : AudioState()
+    data class Error(val message: String) : AudioState()
+}
+
 @HiltViewModel
 class WebScreenViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val newsRepository: NewsRepository,
     private val savedArticleRepository: SavedArticleRepository,
     private val connectivityMonitor: ConnectivityMonitor,
-    private val offlineHtmlCache: OfflineHtmlCache
+    private val offlineHtmlCache: OfflineHtmlCache,
+    private val aiSummarizer: com.example.newsapp.data.util.AiSummarizer,
+    private val ttsEngine: TtsEngine,
+    private val engagementTracker: EngagementTracker
 ) : ViewModel() {
 
     private val encodedUrl: String = savedStateHandle.get<String>("url").orEmpty()
@@ -57,6 +76,9 @@ class WebScreenViewModel @Inject constructor(
 
     private val _isSavedMutable = MutableStateFlow<Boolean?>(null)
     
+    // To prevent double counting
+    private var hasRecordedReadForThisArticle = false
+
     val isSaved: StateFlow<Boolean> = flow {
         val initialSaved = savedArticleRepository.isSaved(decodedUrl)
         _isSavedMutable.value = initialSaved
@@ -105,8 +127,32 @@ class WebScreenViewModel @Inject constructor(
          initialValue = ReaderState.Loading
      )
 
+    private val _aiSummaryState = MutableStateFlow<AiState>(AiState.Idle)
+    val aiSummaryState: StateFlow<AiState> = _aiSummaryState
+
+    private val _audioState = MutableStateFlow<AudioState>(AudioState.Idle)
+    val audioState: StateFlow<AudioState> = _audioState
+
     init {
         _isOnline.value = connectivityMonitor.isOnline()
+        
+        viewModelScope.launch {
+            readerState.collect { state ->
+                if (state is ReaderState.Success && _aiSummaryState.value == AiState.Idle) {
+                    _aiSummaryState.value = AiState.Loading
+                    // Take up to 1500 words to stay within safe token limits and maintain speed
+                    val fullText = state.article.paragraphs.joinToString("\n\n")
+                    val truncatedText = fullText.split("\\s+".toRegex()).take(1500).joinToString(" ")
+                    
+                    val result = aiSummarizer.generateTlDr(truncatedText)
+                    result.onSuccess { summary ->
+                        _aiSummaryState.value = AiState.Success(summary)
+                    }.onFailure { error ->
+                        _aiSummaryState.value = AiState.Error(error.localizedMessage ?: "Failed to generate summary")
+                    }
+                }
+            }
+        }
     }
 
     fun saveCurrentArticle() {
@@ -143,6 +189,43 @@ class WebScreenViewModel @Inject constructor(
                 savedArticleRepository.saveArticle(candidate)
                 _isSavedMutable.value = true
                 _events.emit(UiEvent.Saved())
+            }
+        }
+    }
+
+    fun startAudioNarration() {
+        val currentState = readerState.value
+        if (currentState !is ReaderState.Success) return
+
+        if (_audioState.value is AudioState.Synthesizing || _audioState.value is AudioState.Ready) return
+
+        _audioState.value = AudioState.Synthesizing
+
+        viewModelScope.launch {
+            try {
+                // Combine title and all paragraphs into one text block for TTS
+                val fullText = buildString {
+                    appendLine(currentState.article.title)
+                    currentState.article.paragraphs.forEach { appendLine(it) }
+                }
+                
+                // Use a simplified version of the URL as a unique ID for caching
+                val articleId = decodedUrl.hashCode().toString()
+                
+                val uri = ttsEngine.synthesizeToUri(fullText, articleId)
+                _audioState.value = AudioState.Ready(uri)
+            } catch (e: Exception) {
+                _audioState.value = AudioState.Error(e.message ?: "Failed to generate audio.")
+            }
+        }
+    }
+
+    fun recordArticleRead() {
+        if (!hasRecordedReadForThisArticle) {
+            hasRecordedReadForThisArticle = true
+            viewModelScope.launch {
+                // In a real app we'd get the category from the article object. Defaulting to general.
+                engagementTracker.recordArticleRead("general")
             }
         }
     }

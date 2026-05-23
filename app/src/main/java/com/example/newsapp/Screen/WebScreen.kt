@@ -41,7 +41,15 @@ import com.example.newsapp.ui.components.NewsBackground
 import com.example.newsapp.ui.components.ReaderErrorPanel
 import com.example.newsapp.ui.components.ReaderLoadingStrip
 import com.example.newsapp.ui.components.ReaderTopBar
+import com.example.newsapp.ui.components.AudioPlaybackController
 import com.example.newsapp.ui.tokens.NewsSpacing
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Alignment
 
 @Composable
 fun WebScreen(navController: NavController) {
@@ -50,6 +58,8 @@ fun WebScreen(navController: NavController) {
     val article by viewModel.article.collectAsState()
     val isSaved by viewModel.isSaved.collectAsState()
     val readerState by viewModel.readerState.collectAsState()
+    val aiSummaryState by viewModel.aiSummaryState.collectAsState()
+    val audioState by viewModel.audioState.collectAsState()
 
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
@@ -84,6 +94,21 @@ fun WebScreen(navController: NavController) {
             }
         }
 
+        // 50% Scroll Detection for Gamification
+        LaunchedEffect(listState) {
+            androidx.compose.runtime.snapshotFlow { listState.layoutInfo }
+                .collect { layoutInfo ->
+                    val totalItems = layoutInfo.totalItemsCount
+                    if (totalItems > 0) {
+                        val lastVisibleItemIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                        // If user scrolled past 50% of the content
+                        if (lastVisibleItemIndex >= totalItems / 2) {
+                            viewModel.recordArticleRead()
+                        }
+                    }
+                }
+        }
+
         Scaffold(
             containerColor = Color.Transparent,
             contentWindowInsets = WindowInsets.safeDrawing,
@@ -116,6 +141,36 @@ fun WebScreen(navController: NavController) {
                                 Toast.makeText(context, "Unable to open browser", Toast.LENGTH_SHORT).show()
                             }
                         }
+                    )
+                }
+            },
+            floatingActionButton = {
+                if (readerState is com.example.newsapp.ViewModel.ReaderState.Success && audioState !is com.example.newsapp.ViewModel.AudioState.Ready) {
+                    FloatingActionButton(
+                        onClick = { viewModel.startAudioNarration() },
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                    ) {
+                        if (audioState is com.example.newsapp.ViewModel.AudioState.Synthesizing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(Icons.Default.Audiotrack, contentDescription = "Listen to Article")
+                        }
+                    }
+                }
+            },
+            bottomBar = {
+                if (audioState is com.example.newsapp.ViewModel.AudioState.Ready) {
+                    val uri = (audioState as com.example.newsapp.ViewModel.AudioState.Ready).uri
+                    val title = (readerState as? com.example.newsapp.ViewModel.ReaderState.Success)?.article?.title ?: "Article"
+                    AudioPlaybackController(
+                        uri = uri,
+                        title = title,
+                        modifier = Modifier.padding(16.dp)
                     )
                 }
             }
@@ -170,6 +225,8 @@ fun WebScreen(navController: NavController) {
                                     style = MaterialTheme.typography.headlineLarge,
                                     color = MaterialTheme.colorScheme.onBackground
                                 )
+                                androidx.compose.foundation.layout.Spacer(modifier = Modifier.androidx.compose.foundation.layout.height(NewsSpacing.lg))
+                                com.example.newsapp.ui.components.AiSummaryCard(aiState = aiSummaryState)
                                 androidx.compose.foundation.layout.Spacer(modifier = Modifier.androidx.compose.foundation.layout.height(NewsSpacing.lg))
                             }
                             items(state.article.paragraphs) { paragraph ->
