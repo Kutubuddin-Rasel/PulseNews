@@ -10,6 +10,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.flatMapLatest
+import androidx.paging.cachedIn
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -20,10 +22,12 @@ class TopHeadlinesViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
+    private val _category = MutableStateFlow(savedStateHandle.get<String>("category") ?: "general")
+
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val state: kotlinx.coroutines.flow.Flow<androidx.paging.PagingData<Article>> = _category
         .flatMapLatest { category ->
-            newsRepository.topHeadlines(category = category)
+            newsRepository.getFeed(categoryId = 1, keyword = category)
         }
         .cachedIn(viewModelScope)
 

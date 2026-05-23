@@ -69,11 +69,7 @@ class ArticleDetailViewModel @Inject constructor(
         .distinctUntilChangedBy { it.url }
         .flatMapLatest { currentArticle ->
             val keywords = extractCoreKeywords(currentArticle.title)
-            val query = com.example.newsapp.domain.model.EverythingQuery(
-                topic = keywords,
-                sortBy = "relevancy"
-            )
-            newsRepository.everything(query)
+            newsRepository.getFeed(categoryId = 1, keyword = keywords)
         }.cachedIn(viewModelScope)
 
     private fun extractCoreKeywords(title: String): String {

@@ -1,7 +1,6 @@
 package com.example.newsapp.ui.components
 
 import androidx.compose.foundation.background
-import com.example.newsapp.ViewModel.FeedMode
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
