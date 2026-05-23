@@ -10,6 +10,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.firstOrNull
 
+import com.example.newsapp.Room.CachedFeedDao
 import com.example.newsapp.domain.util.OfflineHtmlCache
 
 @HiltWorker
@@ -17,20 +18,27 @@ class NewsSyncWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted workerParams: WorkerParameters,
     private val newsRepository: NewsRepository,
+    private val cachedFeedDao: CachedFeedDao,
     private val offlineHtmlCache: OfflineHtmlCache
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
         return try {
-            // Fetch top headlines in background to prime the cache (triggers RemoteMediator)
-            newsRepository.topHeadlines(category = "").firstOrNull()
-
-            // Ideally we'd get the cached URLs from the DB here, but for simplicity we rely on the 
-            // RemoteMediator having populated the cache. The UI will fetch HTML on demand, or 
-            // we could inject the DAO to get the first 10 URLs.
-            // Result.success() will be returned.
+            // 1. Ultra-Fast REST Polling: Sync the firehose directly
+            val syncResult = newsRepository.syncFirehose()
             
-            Result.success()
+            if (syncResult.isSuccess) {
+                // 2. Pre-fetch HTML for the top 5 trending articles for instant offline reading
+                val topUrls = cachedFeedDao.getTopUrls(feedKey = "firehose", limit = 5)
+                for (url in topUrls) {
+                    if (!offlineHtmlCache.hasCachedHtml(url)) {
+                        offlineHtmlCache.fetchAndCacheHtml(url)
+                    }
+                }
+                Result.success()
+            } else {
+                Result.retry()
+            }
         } catch (e: Exception) {
             Result.retry()
         }
