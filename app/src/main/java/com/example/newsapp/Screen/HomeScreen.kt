@@ -11,6 +11,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.MaterialTheme
+import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -98,7 +100,7 @@ fun HomeScreen(navController: NavController) {
             }
     }
 
-    val articles = viewModel.feed.androidx.paging.compose.collectAsLazyPagingItems()
+    val articles = viewModel.feed.collectAsLazyPagingItems()
     val loadState = articles.loadState
     val isCurrentlyRefreshing = loadState.refresh is androidx.paging.LoadState.Loading
 
@@ -209,7 +211,7 @@ fun HomeScreen(navController: NavController) {
                                         article = article,
                                         onClick = { 
                                             viewModel.trackArticleClick()
-                                            navController.navigateToArticleDetail(article.url) 
+                                            navController.navigateToArticleDetail(article.url ?: "") 
                                         }
                                     )
                                 }

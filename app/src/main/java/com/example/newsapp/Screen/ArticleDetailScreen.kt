@@ -48,9 +48,19 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.Card
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.CardDefaults
+import androidx.compose.ui.text.style.TextOverflow
 import com.example.newsapp.ViewModel.ArticleDetailViewModel
 import com.example.newsapp.domain.model.UiEvent
 import com.example.newsapp.navigateToWebPage
+import com.example.newsapp.navigateToArticleDetail
 import com.example.newsapp.ui.components.EmptyState
 import com.example.newsapp.ui.components.NewsBackground
 import com.example.newsapp.ui.components.enterpriseTopBarSpacing
@@ -217,8 +227,8 @@ fun ArticleDetailScreen(navController: NavController) {
                 Spacer(modifier = Modifier.height(NewsSpacing.xl))
 
                 // Staff Engineer: Opposing Views UI
-                val relatedArticles = viewModel.relatedPerspectives.androidx.paging.compose.collectAsLazyPagingItems()
-                androidx.compose.animation.AnimatedVisibility(
+                val relatedArticles = viewModel.relatedPerspectives.collectAsLazyPagingItems()
+                AnimatedVisibility(
                     visible = relatedArticles.itemCount > 0,
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -229,9 +239,9 @@ fun ArticleDetailScreen(navController: NavController) {
                             color = MaterialTheme.colorScheme.onBackground,
                             modifier = Modifier.padding(bottom = NewsSpacing.md)
                         )
-                        androidx.compose.foundation.lazy.LazyRow(
+                        LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(NewsSpacing.md),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(end = NewsSpacing.lg)
+                            contentPadding = PaddingValues(end = NewsSpacing.lg)
                         ) {
                             items(
                                 count = relatedArticles.itemCount,
@@ -239,30 +249,30 @@ fun ArticleDetailScreen(navController: NavController) {
                             ) { index ->
                                 val related = relatedArticles[index]
                                 if (related != null) {
-                                    androidx.compose.material3.Card(
+                                    Card(
                                         modifier = Modifier
-                                            .androidx.compose.foundation.layout.width(260.dp)
-                                            .androidx.compose.foundation.clickable {
+                                            .width(260.dp)
+                                            .clickable {
                                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                navController.navigateToArticleDetail(related.url)
+                                                navController.navigateToArticleDetail(related.url ?: "")
                                             },
-                                        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                                     ) {
                                         Column(modifier = Modifier.padding(NewsSpacing.md)) {
                                             Text(
-                                                text = related.source.name,
+                                                text = related.source.name ?: "",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.secondary,
                                                 maxLines = 1,
-                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                             Spacer(modifier = Modifier.height(NewsSpacing.xs))
                                             Text(
-                                                text = related.title,
+                                                text = related.title ?: "",
                                                 style = MaterialTheme.typography.titleSmall,
                                                 color = MaterialTheme.colorScheme.onSurface,
                                                 maxLines = 3,
-                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
                                     }

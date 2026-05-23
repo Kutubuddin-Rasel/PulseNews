@@ -34,7 +34,7 @@ class AlgorithmSettingsViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             val initialPrefs = algoPrefsRepo.preferences.first()
-            listOf("tech", "politics", "business", "sports", "entertainment").forEach { topic ->
+            listOf("technology", "politics", "business", "general", "health").forEach { topic ->
                 _preferences[topic] = initialPrefs[topic] ?: 0.5f
             }
         }
@@ -46,7 +46,13 @@ class AlgorithmSettingsViewModel @Inject constructor(
 
     fun saveAndRecalculate() {
         viewModelScope.launch {
-            algoPrefsRepo.updatePreferences(_preferences.toMap())
+            algoPrefsRepo.updatePreferences(
+                tech = _preferences["technology"] ?: 0.5f,
+                politics = _preferences["politics"] ?: 0.5f,
+                global = _preferences["general"] ?: 0.5f,
+                business = _preferences["business"] ?: 0.5f,
+                health = _preferences["health"] ?: 0.5f
+            )
             // Note: In an enterprise app, this would be an injected UseCase, but for this refactor we cast.
             (newsRepository as? NewsRepositoryImpl)?.recalculateAllScores()
         }
@@ -89,11 +95,11 @@ fun AlgorithmSettingsScreen(
 
             // Dynamic sliders for each topic
             val topics = listOf(
-                "tech" to "Technology & AI",
+                "technology" to "Technology & AI",
                 "politics" to "Politics & Government",
                 "business" to "Business & Economy",
-                "sports" to "Sports",
-                "entertainment" to "Entertainment & Media"
+                "general" to "Global News",
+                "health" to "Health & Wellness"
             )
 
             topics.forEach { (key, title) ->
@@ -123,7 +129,7 @@ fun AlgorithmSettingsScreen(
 }
 
 @Composable
-fun TopicSlider(
+private fun TopicSlider(
     title: String,
     value: Float,
     onValueChange: (Float) -> Unit
