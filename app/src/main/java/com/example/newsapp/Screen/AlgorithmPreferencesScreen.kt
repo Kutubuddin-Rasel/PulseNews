@@ -77,7 +77,7 @@ fun AlgorithmPreferencesScreen() {
 }
 
 @Composable
-fun TopicSlider(label: String, value: Float, onValueChange: (Float) -> Unit) {
+private fun TopicSlider(label: String, value: Float, onValueChange: (Float) -> Unit) {
     Column {
         Text(
             text = "$label (${(value * 100).toInt()}%)",
