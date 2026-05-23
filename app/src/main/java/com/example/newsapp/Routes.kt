@@ -6,6 +6,7 @@ object Routes {
     const val settings = "settings"
     const val notificationPreferences = "notificationPreferences"
     const val algorithmPreferences = "algorithmPreferences"
+    const val profile = "profile"
 
     const val articleUrlArg = "url"
 

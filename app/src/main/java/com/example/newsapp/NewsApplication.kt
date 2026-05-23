@@ -31,11 +31,10 @@ class NewsApplication: Application(), Configuration.Provider {
 
     private fun setupBackgroundSync() {
         val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.UNMETERED)
-            .setRequiresDeviceIdle(true)
+            .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
 
-        val syncRequest = PeriodicWorkRequestBuilder<NewsSyncWorker>(6, TimeUnit.HOURS)
+        val syncRequest = PeriodicWorkRequestBuilder<NewsSyncWorker>(15, TimeUnit.MINUTES)
             .setConstraints(constraints)
             .build()
 
@@ -43,6 +42,17 @@ class NewsApplication: Application(), Configuration.Provider {
             "NewsSyncWork",
             ExistingPeriodicWorkPolicy.KEEP,
             syncRequest
+        )
+
+        // Queue the weekly telemetry worker
+        val cohortTelemetryRequest = PeriodicWorkRequestBuilder<com.example.newsapp.data.worker.CohortTelemetryWorker>(
+            7, java.util.concurrent.TimeUnit.DAYS
+        ).setConstraints(constraints).build()
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "CohortTelemetryWork",
+            ExistingPeriodicWorkPolicy.KEEP,
+            cohortTelemetryRequest
         )
     }
 }
