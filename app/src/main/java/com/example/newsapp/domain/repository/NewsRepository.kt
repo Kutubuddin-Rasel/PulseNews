@@ -7,7 +7,9 @@ import com.example.newsapp.module.Article
 import kotlinx.coroutines.flow.Flow
 
 interface NewsRepository {
-    fun topHeadlines(category: String): Flow<PagingData<Article>>
-    fun everything(query: EverythingQuery): Flow<PagingData<Article>>
+    fun getFeed(categoryId: Int, keyword: String? = null, source: String? = null): Flow<PagingData<Article>>
+    fun getAvailableSources(): Flow<List<String>>
     suspend fun cachedArticleByUrl(url: String): Article?
+    suspend fun syncFirehose(): Result<Unit>
+    suspend fun getNewsMetaLastUpdated(): Result<String?>
 }

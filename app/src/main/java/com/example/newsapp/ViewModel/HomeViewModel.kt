@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
 import javax.inject.Inject
 
+enum class FeedMode { FOR_YOU, TRENDING }
+
 data class FilterUiState(
     val categoryId: Int = 1,
     val queryInput: String = "",

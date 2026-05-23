@@ -55,6 +55,10 @@ class OfflineHtmlCache @Inject constructor(
         return File(cacheDir, "$hash.html")
     }
 
+    fun hasCachedHtml(url: String): Boolean {
+        return getFileForUrl(url).exists()
+    }
+
     private fun hashUrl(url: String): String {
         val md = MessageDigest.getInstance("MD5")
         val bytes = md.digest(url.toByteArray())
