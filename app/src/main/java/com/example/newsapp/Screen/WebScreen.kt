@@ -20,7 +20,16 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -175,7 +184,7 @@ fun WebScreen(navController: NavController) {
                 }
             }
         ) { innerPadding ->
-            androidx.compose.foundation.layout.Column(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
@@ -201,7 +210,7 @@ fun WebScreen(navController: NavController) {
                     }
                     is com.example.newsapp.ViewModel.ReaderState.Success -> {
                         ReaderLoadingStrip(isLoading = false)
-                        androidx.compose.foundation.lazy.LazyColumn(
+                        LazyColumn(
                             state = listState,
                             modifier = Modifier
                                 .fillMaxSize()
@@ -209,36 +218,36 @@ fun WebScreen(navController: NavController) {
                         ) {
                             item {
                                 if (state.article.heroImageUrl != null) {
-                                    coil.compose.AsyncImage(
+                                coil.compose.AsyncImage(
                                         model = state.article.heroImageUrl,
                                         contentDescription = "${state.article.title} hero image",
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .androidx.compose.foundation.layout.height(220.androidx.compose.ui.unit.dp)
-                                            .androidx.compose.foundation.layout.clip(MaterialTheme.shapes.large),
+                                            .height(220.dp)
+                                            .clip(MaterialTheme.shapes.large),
                                         contentScale = androidx.compose.ui.layout.ContentScale.Crop
                                     )
-                                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.androidx.compose.foundation.layout.height(NewsSpacing.md))
+                                    Spacer(modifier = Modifier.height(NewsSpacing.md))
                                 }
-                                androidx.compose.material3.Text(
+                                Text(
                                     text = state.article.title,
                                     style = MaterialTheme.typography.headlineLarge,
                                     color = MaterialTheme.colorScheme.onBackground
                                 )
-                                androidx.compose.foundation.layout.Spacer(modifier = Modifier.androidx.compose.foundation.layout.height(NewsSpacing.lg))
+                                Spacer(modifier = Modifier.height(NewsSpacing.lg))
                                 com.example.newsapp.ui.components.AiSummaryCard(aiState = aiSummaryState)
-                                androidx.compose.foundation.layout.Spacer(modifier = Modifier.androidx.compose.foundation.layout.height(NewsSpacing.lg))
+                                Spacer(modifier = Modifier.height(NewsSpacing.lg))
                             }
                             items(state.article.paragraphs) { paragraph ->
-                                androidx.compose.material3.Text(
+                                Text(
                                     text = paragraph,
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                androidx.compose.foundation.layout.Spacer(modifier = Modifier.androidx.compose.foundation.layout.height(NewsSpacing.md))
+                                Spacer(modifier = Modifier.height(NewsSpacing.md))
                             }
                             item {
-                                androidx.compose.foundation.layout.Spacer(modifier = Modifier.androidx.compose.foundation.layout.height(NewsSpacing.xxl))
+                                Spacer(modifier = Modifier.height(NewsSpacing.lg))
                             }
                         }
                     }

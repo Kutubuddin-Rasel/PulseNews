@@ -8,7 +8,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import com.example.newsapp.ui.tokens.NewsColors
+
 
 @Composable
 fun PrivacyConsentDialog(
@@ -32,14 +32,14 @@ fun PrivacyConsentDialog(
         confirmButton = {
             Button(
                 onClick = onAccept,
-                colors = ButtonDefaults.buttonColors(containerColor = NewsColors.Teal)
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
                 Text("Accept", color = Color.White)
             }
         },
         dismissButton = {
             OutlinedButton(onClick = onDecline) {
-                Text("Decline", color = NewsColors.Teal)
+                Text("Decline", color = MaterialTheme.colorScheme.primary)
             }
         },
         containerColor = MaterialTheme.colorScheme.surfaceVariant
