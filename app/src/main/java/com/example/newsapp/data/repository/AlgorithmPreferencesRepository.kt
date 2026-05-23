@@ -9,9 +9,15 @@ import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
+import com.example.newsapp.data.util.FirestoreSyncManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+
 @Singleton
 class AlgorithmPreferencesRepository @Inject constructor(
-    private val dataStore: DataStore<Preferences>
+    private val dataStore: DataStore<Preferences>,
+    private val firestoreSyncManager: FirestoreSyncManager
 ) {
     companion object {
         val KEY_TECH = floatPreferencesKey("algo_tech")
@@ -38,6 +44,10 @@ class AlgorithmPreferencesRepository @Inject constructor(
             prefs[KEY_GLOBAL] = global
             prefs[KEY_BUSINESS] = business
             prefs[KEY_HEALTH] = health
+        }
+        
+        CoroutineScope(Dispatchers.IO).launch {
+            firestoreSyncManager.pushPreferences(tech, politics, global, business, health)
         }
     }
 }
