@@ -216,6 +216,15 @@ fun ArticleCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                if (article.provenance?.status == com.example.newsapp.domain.model.VerificationStatus.SOURCE_VERIFIED) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Default.CheckCircle,
+                        contentDescription = "Verified Publisher",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
                 Text(
                     text = "  •  ${formatDate(article.publishedAt)}",
                     style = MaterialTheme.typography.labelSmall,

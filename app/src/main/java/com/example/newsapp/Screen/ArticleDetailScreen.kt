@@ -188,11 +188,28 @@ fun ArticleDetailScreen(navController: NavController) {
                 )
 
                 Spacer(modifier = Modifier.height(NewsSpacing.md))
-                Text(
-                    text = item.source.name,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.secondary
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = item.source.name,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                    if (item.provenance?.status == com.example.newsapp.domain.model.VerificationStatus.SOURCE_VERIFIED) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(
+                            imageVector = androidx.compose.material.icons.Icons.Default.CheckCircle,
+                            contentDescription = "Verified Publisher",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Verified via ${item.provenance.verificationMethod} from ${item.provenance.trustedSigner}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
                 Text(
                     text = formatDate(item.publishedAt),
                     style = MaterialTheme.typography.labelMedium,
