@@ -1,6 +1,7 @@
 package com.example.newsapp.ui.components
 
 import androidx.compose.foundation.background
+import com.example.newsapp.ViewModel.FeedMode
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -117,17 +118,14 @@ fun HomeHeader(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FeedFilterBottomSheet(
-    mode: FeedMode,
-    selectedCategory: String,
-    currentSort: String,
+    categoryId: Int,
     query: String,
-    onModeChange: (FeedMode) -> Unit,
-    onCategoryChange: (String) -> Unit,
-    onSortChange: (String) -> Unit,
+    selectedSource: String?,
+    availableSources: List<String>,
+    onCategoryChange: (Int) -> Unit,
     onQueryChange: (String) -> Unit,
+    onSourceChange: (String?) -> Unit,
     onSearch: () -> Unit,
-    categories: List<String>,
-    sortOptions: List<String>,
     onDismissRequest: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -142,29 +140,77 @@ fun FeedFilterBottomSheet(
                 .fillMaxWidth()
                 .padding(horizontal = NewsSpacing.lg, vertical = NewsSpacing.md)
         ) {
-            ModeSwitcher(mode = mode, onModeChange = onModeChange)
+            Text(
+                text = "Virtual Categories",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(NewsSpacing.sm))
+            
+            // Render the 7 virtual categories
+            val virtualCategories = listOf(
+                1 to "For You",
+                2 to "Technology",
+                3 to "Business",
+                4 to "Politics",
+                5 to "Sports",
+                6 to "Entertainment",
+                7 to "Health & Science"
+            )
+            
+            FadedHorizontalRow {
+                virtualCategories.forEach { (id, name) ->
+                    EnterprisePill(
+                        text = name,
+                        selected = categoryId == id,
+                        onClick = { onCategoryChange(id) }
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(NewsSpacing.md))
+            Text(
+                text = "Keyword Search",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(NewsSpacing.sm))
 
-            if (mode == FeedMode.Top) {
-                CategoryChipRow(
-                    categories = categories,
-                    selectedCategory = selectedCategory,
-                    onCategoryChange = onCategoryChange
+            SearchBlock(
+                query = query,
+                onQueryChange = onQueryChange,
+                onSearch = {
+                    onSearch()
+                    onDismissRequest()
+                }
+            )
+            
+            Spacer(modifier = Modifier.height(NewsSpacing.md))
+            Text(
+                text = "Source Filter",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(NewsSpacing.sm))
+            
+            FadedHorizontalRow {
+                EnterprisePill(
+                    text = "All Sources",
+                    selected = selectedSource == null,
+                    onClick = { onSourceChange(null) }
                 )
-            } else {
-                SearchAndSortBlock(
-                    query = query,
-                    currentSort = currentSort,
-                    sortOptions = sortOptions,
-                    onQueryChange = onQueryChange,
-                    onSearch = {
-                        onSearch()
-                        onDismissRequest()
-                    },
-                    onSortChange = onSortChange
-                )
+                availableSources.forEach { source ->
+                    EnterprisePill(
+                        text = source,
+                        selected = selectedSource == source,
+                        onClick = { onSourceChange(source) }
+                    )
+                }
             }
+
             Spacer(modifier = Modifier.height(NewsSpacing.xl))
         }
     }
@@ -191,63 +237,10 @@ fun HeaderActionButton(onRefresh: () -> Unit) {
 }
 
 @Composable
-fun ModeSwitcher(mode: FeedMode, onModeChange: (FeedMode) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(NewsSpacing.sm)) {
-        EnterprisePill(
-            text = "Top",
-            selected = mode == FeedMode.Top,
-            onClick = { onModeChange(FeedMode.Top) }
-        )
-        EnterprisePill(
-            text = "Everything",
-            selected = mode == FeedMode.Everything,
-            onClick = { onModeChange(FeedMode.Everything) }
-        )
-    }
-}
-
-@Composable
-fun CategoryChipRow(
-    categories: List<String>,
-    selectedCategory: String,
-    onCategoryChange: (String) -> Unit
-) {
-    FadedHorizontalRow {
-        categories.forEach { category ->
-            EnterprisePill(
-                text = category.replaceFirstChar(Char::uppercase),
-                selected = selectedCategory == category,
-                onClick = { onCategoryChange(category) }
-            )
-        }
-    }
-}
-
-@Composable
-fun SortChipRow(
-    sortOptions: List<String>,
-    currentSort: String,
-    onSortChange: (String) -> Unit
-) {
-    FadedHorizontalRow {
-        sortOptions.forEach { sortBy ->
-            EnterprisePill(
-                text = sortBy,
-                selected = currentSort == sortBy,
-                onClick = { onSortChange(sortBy) }
-            )
-        }
-    }
-}
-
-@Composable
-private fun SearchAndSortBlock(
+fun SearchBlock(
     query: String,
-    currentSort: String,
-    sortOptions: List<String>,
     onQueryChange: (String) -> Unit,
-    onSearch: () -> Unit,
-    onSortChange: (String) -> Unit
+    onSearch: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
     OutlinedTextField(
@@ -275,14 +268,6 @@ private fun SearchAndSortBlock(
                 )
             }
         }
-    )
-
-    Spacer(modifier = Modifier.height(NewsSpacing.sm))
-
-    SortChipRow(
-        sortOptions = sortOptions,
-        currentSort = currentSort,
-        onSortChange = onSortChange
     )
 }
 
