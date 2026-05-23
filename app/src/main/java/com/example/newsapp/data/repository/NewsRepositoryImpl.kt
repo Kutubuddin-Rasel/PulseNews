@@ -17,6 +17,7 @@ import com.example.newsapp.domain.util.ConnectivityMonitor
 import com.example.newsapp.module.Article
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import androidx.paging.map
 import retrofit2.Response
 import java.io.IOException

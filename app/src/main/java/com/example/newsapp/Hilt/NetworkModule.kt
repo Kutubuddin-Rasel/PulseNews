@@ -18,7 +18,7 @@ import javax.inject.Singleton
 class NetworkModule {
     @Provides
     @Singleton
-    fun provideTelemetry(): AppTelemetry = AppTelemetry()
+    fun provideTelemetry(privacyPrefs: com.example.newsapp.data.repository.PrivacyPreferencesRepository): AppTelemetry = AppTelemetry(privacyPrefs)
 
     @Provides
     @Singleton
