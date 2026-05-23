@@ -6,8 +6,8 @@ import androidx.room.TypeConverters
 import com.example.newsapp.module.Article
 
 @Database(
-    entities = [Article::class, CachedFeedArticleEntity::class, RemoteKeys::class],
-    version = 3,
+    entities = [Article::class, CachedFeedArticleEntity::class, CachedFeedFtsEntity::class, RemoteKeys::class],
+    version = 5,
     exportSchema = false
 )
 @TypeConverters(TypeConverter::class)

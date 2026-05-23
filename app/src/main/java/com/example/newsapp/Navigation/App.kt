@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -27,6 +28,7 @@ import com.example.newsapp.Screen.HomeScreen
 import com.example.newsapp.Screen.SavedArticle
 import com.example.newsapp.Screen.SettingsScreen
 import com.example.newsapp.Screen.NotificationPreferencesScreen
+import com.example.newsapp.Screen.PulseProfileScreen
 import com.example.newsapp.Screen.WebScreen
 
 @Composable
@@ -35,12 +37,13 @@ fun App() {
     val navItems = listOf(
         NavigationItem(Routes.home, "Home", Icons.Outlined.Home),
         NavigationItem(Routes.saved, "Saved", Icons.Outlined.Bookmarks),
+        NavigationItem(Routes.profile, "Profile", Icons.Outlined.Person),
         NavigationItem(Routes.settings, "Settings", Icons.Outlined.Settings)
     )
 
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
-    val showBottomBar = currentRoute in setOf(Routes.home, Routes.saved, Routes.settings)
+    val showBottomBar = currentRoute in setOf(Routes.home, Routes.saved, Routes.profile, Routes.settings)
 
     Scaffold(
         bottomBar = {
@@ -78,6 +81,7 @@ fun App() {
         ) {
             composable(Routes.home) { HomeScreen(navController) }
             composable(Routes.saved) { SavedArticle(navController) }
+            composable(Routes.profile) { PulseProfileScreen() }
             composable(Routes.settings) { 
                 SettingsScreen(
                     onNavigateToNotifications = {
