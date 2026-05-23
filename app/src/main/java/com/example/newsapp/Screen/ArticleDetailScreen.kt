@@ -57,6 +57,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.CardDefaults
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.CheckCircle
 import com.example.newsapp.ViewModel.ArticleDetailViewModel
 import com.example.newsapp.domain.model.UiEvent
 import com.example.newsapp.navigateToWebPage
