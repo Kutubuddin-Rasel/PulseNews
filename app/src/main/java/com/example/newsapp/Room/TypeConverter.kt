@@ -16,4 +16,14 @@ class TypeConverter {
     fun toSource(sourceJson: String): Source {
         return gson.fromJson(sourceJson, Source::class.java)
     }
+
+    @TypeConverter
+    fun fromProvenance(provenance: com.example.newsapp.domain.model.Provenance?): String? {
+        return provenance?.let { gson.toJson(it) }
+    }
+
+    @TypeConverter
+    fun toProvenance(provenanceJson: String?): com.example.newsapp.domain.model.Provenance? {
+        return provenanceJson?.let { gson.fromJson(it, com.example.newsapp.domain.model.Provenance::class.java) }
+    }
 }

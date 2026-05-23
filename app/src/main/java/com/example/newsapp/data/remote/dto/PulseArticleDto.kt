@@ -5,5 +5,6 @@ data class PulseArticleDto(
     val link: String,
     val snippet: String,
     val pubDate: String,
-    val source: String
+    val source: String,
+    val provenance: ProvenanceDto? = null
 )
