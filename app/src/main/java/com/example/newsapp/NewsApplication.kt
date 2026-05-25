@@ -70,5 +70,20 @@ class NewsApplication: Application(), Configuration.Provider {
             ExistingPeriodicWorkPolicy.KEEP,
             cohortTelemetryRequest
         )
+
+        // Queue interaction telemetry worker
+        val interactionConstraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.UNMETERED)
+            .build()
+
+        val interactionSyncRequest = PeriodicWorkRequestBuilder<com.example.newsapp.data.worker.TelemetrySyncWorker>(
+            15, TimeUnit.MINUTES
+        ).setConstraints(interactionConstraints).build()
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "InteractionTelemetryWork",
+            ExistingPeriodicWorkPolicy.KEEP,
+            interactionSyncRequest
+        )
     }
 }

@@ -4,6 +4,7 @@ import com.example.newsapp.data.remote.dto.PulseArticleDto
 import com.example.newsapp.data.remote.dto.PulseMetaDto
 import com.example.newsapp.data.remote.dto.TaxonomyDto
 import com.example.newsapp.data.remote.dto.BookmarkRequest
+import com.example.newsapp.data.remote.dto.TelemetryBatchRequest
 import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Query
@@ -50,4 +51,10 @@ interface PulseBackendApi {
 
     @GET("api/taxonomy")
     suspend fun getTaxonomy(): Response<TaxonomyDto>
+
+    @POST("api/news/interactions")
+    suspend fun postInteractions(
+        @Header("x-device-id") deviceId: String,
+        @Body request: TelemetryBatchRequest
+    ): Response<Unit>
 }
