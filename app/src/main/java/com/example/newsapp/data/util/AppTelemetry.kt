@@ -1,6 +1,8 @@
 package com.example.newsapp.data.util
 
 import android.util.Log
+import com.example.newsapp.Room.InteractionEventDao
+import com.example.newsapp.Room.InteractionEventEntity
 import com.example.newsapp.data.repository.PrivacyPreferencesRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -12,7 +14,8 @@ import javax.inject.Singleton
 
 @Singleton
 class AppTelemetry @Inject constructor(
-    private val privacyPrefs: PrivacyPreferencesRepository
+    private val privacyPrefs: PrivacyPreferencesRepository,
+    private val interactionEventDao: InteractionEventDao
 ) {
     private var isConsentGranted: Boolean = false
 
@@ -47,5 +50,18 @@ class AppTelemetry @Inject constructor(
         // Future integration point for Firebase Crashlytics / Analytics
         // Example: FirebaseCrashlytics.getInstance().log("$level: $tag: $message")
         // Example: if (throwable != null) FirebaseCrashlytics.getInstance().recordException(throwable)
+    }
+
+    fun logInteraction(articleId: String, interactionType: String) {
+        if (!isConsentGranted) return
+        
+        CoroutineScope(Dispatchers.IO).launch {
+            val event = InteractionEventEntity(
+                articleId = articleId,
+                interactionType = interactionType,
+                timestamp = System.currentTimeMillis()
+            )
+            interactionEventDao.insertEvent(event)
+        }
     }
 }

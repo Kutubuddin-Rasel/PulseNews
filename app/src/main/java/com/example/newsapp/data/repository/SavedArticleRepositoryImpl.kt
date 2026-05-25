@@ -87,7 +87,7 @@ class SavedArticleRepositoryImpl @Inject constructor(
                 val backendArticles = response.body()?.mapNotNull { it.toDomainOrNull() } ?: emptyList()
                 
                 // Read the first emission of local articles
-                val localArticles = kotlinx.coroutines.flow.first(articleDao.allArticle())
+                val localArticles = articleDao.allArticle().first()
                 if (localArticles.isEmpty() && backendArticles.isNotEmpty()) {
                     backendArticles.forEach { article ->
                         articleDao.upsertArticle(article)
