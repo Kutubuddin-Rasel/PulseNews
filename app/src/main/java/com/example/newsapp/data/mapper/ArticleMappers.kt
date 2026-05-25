@@ -64,7 +64,10 @@ fun com.example.newsapp.data.remote.dto.PulseArticleDto.toDomainOrNull(): Articl
         },
         regionCode = regionCode,
         sourceTier = sourceTier,
-        category = taxonomy?.categories?.firstOrNull()
+        taxonomy = buildList {
+            taxonomy?.categories?.let { addAll(it) }
+            taxonomy?.tags?.let { addAll(it) }
+        }.takeIf { it.isNotEmpty() }
     )
 }
 
@@ -88,7 +91,7 @@ fun Article.toCacheEntity(feedKey: String, sortOrder: Int, fetchedAt: Long): Cac
         trustedSigner = provenance?.trustedSigner,
         regionCode = regionCode,
         sourceTier = sourceTier,
-        category = category
+        taxonomy = taxonomy
     )
 }
 
@@ -110,6 +113,6 @@ fun CachedFeedArticleEntity.toDomainArticle(): Article {
         ),
         regionCode = regionCode,
         sourceTier = sourceTier,
-        category = category
+        taxonomy = taxonomy
     )
 }

@@ -141,7 +141,9 @@ class WebScreenViewModel @Inject constructor(
                 if (state is ReaderState.Success && _aiSummaryState.value == AiState.Idle) {
                     _aiSummaryState.value = AiState.Loading
                     // Take up to 1500 words to stay within safe token limits and maintain speed
-                    val fullText = state.article.paragraphs.joinToString("\n\n")
+                    val fullText = state.article.blocks
+                        .filterIsInstance<com.example.newsapp.domain.util.ArticleBlock.Text>()
+                        .joinToString("\n\n") { it.content }
                     val truncatedText = fullText.split("\\s+".toRegex()).take(1500).joinToString(" ")
                     
                     val result = aiSummarizer.generateTlDr(truncatedText)
@@ -203,10 +205,12 @@ class WebScreenViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                // Combine title and all paragraphs into one text block for TTS
+                // Combine title and all text blocks into one text block for TTS
                 val fullText = buildString {
                     appendLine(currentState.article.title)
-                    currentState.article.paragraphs.forEach { appendLine(it) }
+                    currentState.article.blocks
+                        .filterIsInstance<com.example.newsapp.domain.util.ArticleBlock.Text>()
+                        .forEach { appendLine(it.content) }
                 }
                 
                 // Use a simplified version of the URL as a unique ID for caching

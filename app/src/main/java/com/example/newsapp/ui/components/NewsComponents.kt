@@ -309,17 +309,24 @@ fun ArticleCard(
                 )
             }
             
-            if (!article.category.isNullOrEmpty()) {
+            if (!article.taxonomy.isNullOrEmpty()) {
                 Spacer(modifier = Modifier.height(NewsSpacing.sm))
-                androidx.compose.material3.SuggestionChip(
-                    onClick = { /* TODO: Filter */ },
-                    label = { Text(article.category.replaceFirstChar { it.uppercase() }) },
-                    colors = androidx.compose.material3.SuggestionChipDefaults.suggestionChipColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        labelColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    ),
-                    border = null
-                )
+                androidx.compose.foundation.lazy.LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(NewsSpacing.xs),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(article.taxonomy) { tag ->
+                        androidx.compose.material3.SuggestionChip(
+                            onClick = { /* TODO: Filter */ },
+                            label = { Text(tag.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }) },
+                            colors = androidx.compose.material3.SuggestionChipDefaults.suggestionChipColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                labelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            ),
+                            border = null
+                        )
+                    }
+                }
             }
 
             if (trailing != null) {

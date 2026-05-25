@@ -22,5 +22,5 @@ data class Article(
     val provenance: com.example.newsapp.domain.model.Provenance? = null,
     val regionCode: String? = null,
     val sourceTier: Int? = null,
-    val category: String? = null
+    val taxonomy: List<String>? = null
 )

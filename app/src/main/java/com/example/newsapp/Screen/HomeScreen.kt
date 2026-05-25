@@ -203,7 +203,7 @@ fun HomeScreen(navController: NavController) {
                         ) {
                             items(
                                 count = articles.itemCount,
-                                key = { index -> articles.peek(index)?.url ?: index }
+                                key = { index -> articles.peek(index)?.backendId?.takeIf { it.isNotBlank() } ?: articles.peek(index)?.url ?: index }
                             ) { index ->
                                 val article = articles[index]
                                 if (article != null) {

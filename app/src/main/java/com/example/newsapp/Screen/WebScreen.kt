@@ -22,6 +22,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -54,6 +55,7 @@ import com.example.newsapp.ui.components.AudioPlaybackController
 import com.example.newsapp.ui.tokens.NewsSpacing
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.CircularProgressIndicator
@@ -238,13 +240,71 @@ fun WebScreen(navController: NavController) {
                                 com.example.newsapp.ui.components.AiSummaryCard(aiState = aiSummaryState)
                                 Spacer(modifier = Modifier.height(NewsSpacing.lg))
                             }
-                            items(state.article.paragraphs) { paragraph ->
-                                Text(
-                                    text = paragraph,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(NewsSpacing.md))
+                            items(state.article.blocks) { block ->
+                                when (block) {
+                                    is com.example.newsapp.domain.util.ArticleBlock.Text -> {
+                                        val style = when (block.type) {
+                                            com.example.newsapp.domain.util.TextType.H1 -> MaterialTheme.typography.headlineMedium
+                                            com.example.newsapp.domain.util.TextType.H2 -> MaterialTheme.typography.titleLarge
+                                            com.example.newsapp.domain.util.TextType.H3 -> MaterialTheme.typography.titleMedium
+                                            com.example.newsapp.domain.util.TextType.PARAGRAPH -> MaterialTheme.typography.bodyLarge
+                                        }
+                                        val color = when (block.type) {
+                                            com.example.newsapp.domain.util.TextType.PARAGRAPH -> MaterialTheme.colorScheme.onSurfaceVariant
+                                            else -> MaterialTheme.colorScheme.onBackground
+                                        }
+                                        Text(
+                                            text = block.content,
+                                            style = style,
+                                            color = color
+                                        )
+                                        Spacer(modifier = Modifier.height(NewsSpacing.md))
+                                    }
+                                    is com.example.newsapp.domain.util.ArticleBlock.Image -> {
+                                        coil.compose.AsyncImage(
+                                            model = block.url,
+                                            contentDescription = block.caption,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(MaterialTheme.shapes.medium),
+                                            contentScale = androidx.compose.ui.layout.ContentScale.FillWidth
+                                        )
+                                        if (block.caption != null) {
+                                            Spacer(modifier = Modifier.height(NewsSpacing.xs))
+                                            Text(
+                                                text = block.caption,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(NewsSpacing.lg))
+                                    }
+                                    is com.example.newsapp.domain.util.ArticleBlock.Video -> {
+                                        // A simple placeholder for video support. In a production app,
+                                        // this would use ExoPlayer or an isolated WebView iframe.
+                                        androidx.compose.material3.Surface(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(200.dp),
+                                            color = MaterialTheme.colorScheme.surfaceVariant,
+                                            shape = MaterialTheme.shapes.medium
+                                        ) {
+                                            Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
+                                                Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                                                    Icon(
+                                                        Icons.Default.PlayArrow,
+                                                        contentDescription = "Play Video",
+                                                        modifier = Modifier.size(48.dp),
+                                                        tint = MaterialTheme.colorScheme.primary
+                                                    )
+                                                    Spacer(modifier = Modifier.height(8.dp))
+                                                    Text("${block.platform} Video", style = MaterialTheme.typography.labelLarge)
+                                                }
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(NewsSpacing.lg))
+                                    }
+                                }
                             }
                             item {
                                 Spacer(modifier = Modifier.height(NewsSpacing.lg))

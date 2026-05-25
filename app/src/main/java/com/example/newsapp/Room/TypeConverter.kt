@@ -26,4 +26,16 @@ class TypeConverter {
     fun toProvenance(provenanceJson: String?): com.example.newsapp.domain.model.Provenance? {
         return provenanceJson?.let { gson.fromJson(it, com.example.newsapp.domain.model.Provenance::class.java) }
     }
+
+    @TypeConverter
+    fun fromStringList(list: List<String>?): String? {
+        return list?.let { gson.toJson(it) }
+    }
+
+    @TypeConverter
+    fun toStringList(json: String?): List<String>? {
+        if (json == null) return null
+        val type = object : com.google.gson.reflect.TypeToken<List<String>>() {}.type
+        return gson.fromJson(json, type)
+    }
 }
