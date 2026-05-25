@@ -20,6 +20,7 @@ import com.example.newsapp.data.util.DeviceIdProvider
 import com.example.newsapp.data.util.FirestoreSyncManager
 import com.example.newsapp.data.worker.BookmarkSyncWorker
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.first
 
 class SavedArticleRepositoryImpl @Inject constructor(
     private val articleDao: ArticleDao,

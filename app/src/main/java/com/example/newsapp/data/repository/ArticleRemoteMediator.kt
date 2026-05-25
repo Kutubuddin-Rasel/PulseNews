@@ -8,7 +8,6 @@ import androidx.room.withTransaction
 import com.example.newsapp.Api.PulseBackendApi
 import com.example.newsapp.Room.ArticleDatabase
 import com.example.newsapp.Room.CachedFeedArticleEntity
-import com.example.newsapp.Room.RemoteKeys
 import com.example.newsapp.data.mapper.toCacheEntity
 import com.example.newsapp.data.mapper.toDomainOrNull
 import com.example.newsapp.data.util.AppTelemetry
@@ -51,18 +50,20 @@ class ArticleRemoteMediator(
         }
 
         return try {
-            val page = when (loadType) {
-                LoadType.REFRESH -> 1
+            val cursor: String? = when (loadType) {
+                LoadType.REFRESH -> null
                 LoadType.PREPEND -> return MediatorResult.Success(endOfPaginationReached = true)
                 LoadType.APPEND -> {
-                    val remoteKeys = getRemoteKeyForLastItem(state)
-                    val nextKey = remoteKeys?.nextKey
-                        ?: return MediatorResult.Success(endOfPaginationReached = remoteKeys != null)
-                    nextKey
+                    state.lastItemOrNull()?.backendId
+                        ?: return MediatorResult.Success(endOfPaginationReached = false)
                 }
             }
 
-            val response = pulseBackendApi.getNewsFeed(page = page)
+            val response = if (feedKey == "for_you") {
+                pulseBackendApi.getForYouFeed(cursor = cursor, limit = state.config.pageSize)
+            } else {
+                pulseBackendApi.getNewsFeed(cursor = cursor, limit = state.config.pageSize)
+            }
 
             if (response.isSuccessful) {
                 val articlesDto = response.body() ?: emptyList()
@@ -72,22 +73,12 @@ class ArticleRemoteMediator(
 
                 database.withTransaction {
                     if (loadType == LoadType.REFRESH) {
-                        database.remoteKeysDao().clearRemoteKeys()
                         database.cachedFeedDao().clearFeed(feedKey)
                     }
-
-                    val prevKey = if (page == 1) null else page - 1
-                    val nextKey = if (endOfPaginationReached) null else page + 1
-
-                    val keys = articles.map {
-                        RemoteKeys(url = it.url, prevKey = prevKey, nextKey = nextKey)
-                    }
-                    database.remoteKeysDao().insertAll(keys)
 
                     val entities = articles.mapIndexed { index, article ->
                         article.toCacheEntity(
                             feedKey = feedKey,
-                            page = page,
                             sortOrder = index,
                             fetchedAt = fetchedAt
                         )
@@ -104,12 +95,5 @@ class ArticleRemoteMediator(
         } catch (e: HttpException) {
             MediatorResult.Error(e)
         }
-    }
-
-    private suspend fun getRemoteKeyForLastItem(state: PagingState<Int, CachedFeedArticleEntity>): RemoteKeys? {
-        return state.pages.lastOrNull { it.data.isNotEmpty() }?.data?.lastOrNull()
-            ?.let { article ->
-                database.remoteKeysDao().remoteKeysId(article.url)
-            }
     }
 }

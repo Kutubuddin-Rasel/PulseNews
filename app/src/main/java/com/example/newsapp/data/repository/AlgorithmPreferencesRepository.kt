@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import com.example.newsapp.Hilt.AlgorithmDataStore
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -16,7 +17,7 @@ import kotlinx.coroutines.launch
 
 @Singleton
 class AlgorithmPreferencesRepository @Inject constructor(
-    private val dataStore: DataStore<Preferences>,
+    @AlgorithmDataStore private val dataStore: DataStore<Preferences>,
     private val firestoreSyncManager: FirestoreSyncManager
 ) {
     companion object {
