@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.example.newsapp.Room.ArticleDatabase
 import com.example.newsapp.Room.ArticleDao
 import com.example.newsapp.Room.CachedFeedDao
+import com.example.newsapp.Room.InteractionEventDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -31,5 +32,10 @@ class DatabaseModule {
     @Provides
     fun provideCachedFeedDao(database: ArticleDatabase): CachedFeedDao {
         return database.cachedFeedDao()
+    }
+
+    @Provides
+    fun provideInteractionEventDao(database: ArticleDatabase): InteractionEventDao {
+        return database.interactionEventDao()
     }
 }

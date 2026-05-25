@@ -19,7 +19,10 @@ import com.google.gson.Gson
 class NetworkModule {
     @Provides
     @Singleton
-    fun provideTelemetry(privacyPrefs: com.example.newsapp.data.repository.PrivacyPreferencesRepository): AppTelemetry = AppTelemetry(privacyPrefs)
+    fun provideTelemetry(
+        privacyPrefs: com.example.newsapp.data.repository.PrivacyPreferencesRepository,
+        interactionEventDao: com.example.newsapp.Room.InteractionEventDao
+    ): AppTelemetry = AppTelemetry(privacyPrefs, interactionEventDao)
 
     @Provides
     @Singleton
