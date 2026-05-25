@@ -9,4 +9,5 @@ interface SavedArticleRepository {
     suspend fun deleteArticle(article: Article)
     suspend fun isSaved(url: String): Boolean
     suspend fun articleByUrl(url: String): Article?
+    suspend fun syncBookmarks()
 }
