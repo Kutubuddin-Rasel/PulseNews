@@ -5,15 +5,11 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
 
-object FeedScorer {
+import javax.inject.Inject
 
-    private val TOPIC_KEYWORDS = mapOf(
-        "tech" to listOf("tech", "technology", "software", "ai", "apple", "google", "microsoft", "cyber"),
-        "politics" to listOf("politics", "government", "election", "president", "congress", "senate", "policy"),
-        "business" to listOf("economy", "stock", "market", "finance", "business", "inflation", "corporate"),
-        "sports" to listOf("sports", "football", "basketball", "soccer", "nfl", "nba", "championship", "athlete"),
-        "entertainment" to listOf("movie", "music", "hollywood", "celebrity", "entertainment", "actor", "award")
-    )
+class FeedScorer @Inject constructor(
+    private val keywordMatcher: KeywordMatcher
+) {
 
     private val TRUSTED_SOURCES = listOf("reuters", "ap", "associated press", "bbc", "npr", "bloomberg")
 
@@ -36,26 +32,27 @@ object FeedScorer {
         val contentLower = article.content?.lowercase(Locale.getDefault()) ?: ""
         val descriptionLower = article.description?.lowercase(Locale.getDefault()) ?: ""
 
-        val fullText = "$contentLower $descriptionLower"
+        val fullText = "$titleLower $contentLower $descriptionLower"
 
         // 1 & 2. Topic Affinity & Keyword Frequency
-        TOPIC_KEYWORDS.forEach { (topic, keywords) ->
+        // Uses the Aho-Corasick O(C) matching engine to find frequencies without allocations
+        val topicFrequencies = keywordMatcher.matchFrequencies(fullText)
+
+        topicFrequencies.forEach { (topic, matchCount) ->
             // Default weight is 0.5f if the user hasn't explicitly set it yet
             val userWeight = userWeights[topic] ?: 0.5f 
-
-            var topicMatches = 0f
-            keywords.forEach { keyword ->
-                // Title matches are extremely strong indicators (weight 3x)
-                if (titleLower.contains(keyword)) {
-                    topicMatches += 3.0f
-                }
-                
-                // Content matches (weight 1x) - fast simple frequency
-                topicMatches += fullText.split(keyword).size - 1
-            }
-
+            
             // Apply the user's explicit slider weight
-            score += (topicMatches * userWeight)
+            score += (matchCount * userWeight)
+        }
+
+        // Title matches are extremely strong indicators (weight 3x). 
+        // We do a secondary pass on just the title for the strong signal multiplier.
+        // The engine finds all matches in the title, and we add an extra 2x weight (since 1x was already added above).
+        val titleFrequencies = keywordMatcher.matchFrequencies(titleLower)
+        titleFrequencies.forEach { (topic, matchCount) ->
+            val userWeight = userWeights[topic] ?: 0.5f 
+            score += (matchCount * userWeight * 2.0f)
         }
 
         // 3. Source Trustworthiness
