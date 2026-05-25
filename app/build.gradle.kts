@@ -19,6 +19,10 @@ android {
     namespace = "com.example.newsapp"
     compileSdk = 36
 
+    composeCompiler {
+        stabilityConfigurationFiles.add(rootProject.layout.projectDirectory.file("compose_compiler_config.conf"))
+    }
+
     defaultConfig {
         applicationId = "com.example.newsapp"
         minSdk = 29
@@ -70,6 +74,7 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
 
     buildFeatures {
         compose = true
@@ -133,6 +138,9 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
+    
+    // Persistent Immutable Data Structures for Compose UI Stability (HAMT)
+    implementation(libs.kotlinx.collections.immutable)
 
     implementation(libs.squareup.retrofit)
     implementation(libs.squareup.retrofit.converter.gson)
@@ -180,4 +188,8 @@ dependencies {
 
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    compilerOptions.freeCompilerArgs.add("-Xannotation-default-target=param-property")
 }

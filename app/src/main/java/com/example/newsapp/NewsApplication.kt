@@ -44,6 +44,22 @@ class NewsApplication: Application(), Configuration.Provider {
             syncRequest
         )
 
+        // Queue the taxonomy sync worker (Hybrid ML Dictionary)
+        val taxonomyConstraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.UNMETERED)
+            .setRequiresCharging(true)
+            .build()
+
+        val taxonomySyncRequest = PeriodicWorkRequestBuilder<com.example.newsapp.worker.TaxonomySyncWorker>(
+            3, TimeUnit.DAYS
+        ).setConstraints(taxonomyConstraints).build()
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "TaxonomySyncWork",
+            ExistingPeriodicWorkPolicy.KEEP,
+            taxonomySyncRequest
+        )
+
         // Queue the weekly telemetry worker
         val cohortTelemetryRequest = PeriodicWorkRequestBuilder<com.example.newsapp.data.worker.CohortTelemetryWorker>(
             7, java.util.concurrent.TimeUnit.DAYS

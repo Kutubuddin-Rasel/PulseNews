@@ -4,6 +4,7 @@ import com.example.newsapp.Room.CachedFeedArticleEntity
 import com.example.newsapp.data.remote.dto.ArticleDto
 import com.example.newsapp.module.Article
 import com.example.newsapp.module.Source
+import androidx.core.text.HtmlCompat
 
 fun ArticleDto.toDomainOrNull(): Article? {
     val cleanedUrl = url?.trim().orEmpty()
@@ -36,37 +37,41 @@ fun ArticleDto.toDomainOrNull(): Article? {
 
 fun com.example.newsapp.data.remote.dto.PulseArticleDto.toDomainOrNull(): Article? {
     val cleanedUrl = link.trim()
-    val cleanedTitle = title.trim()
+    val cleanedTitle = HtmlCompat.fromHtml(title.trim(), HtmlCompat.FROM_HTML_MODE_LEGACY).toString()
     if (cleanedUrl.isEmpty() || cleanedTitle.isEmpty()) {
         return null
     }
 
     return Article(
         url = cleanedUrl,
+        backendId = id,
         author = null,
         content = null,
-        description = snippet,
+        description = HtmlCompat.fromHtml(snippet.trim(), HtmlCompat.FROM_HTML_MODE_LEGACY).toString(),
         publishedAt = pubDate,
         source = Source(
             id = null,
-            name = source.trim().ifEmpty { "Unknown" }
+            name = source.trim().removePrefix("News - ").trim().ifEmpty { "Unknown" }
         ),
         title = cleanedTitle,
-        urlToImage = null,
+        urlToImage = urlToImage,
         provenance = provenance?.let {
             com.example.newsapp.domain.model.Provenance(
                 status = try { com.example.newsapp.domain.model.VerificationStatus.valueOf(it.status ?: "UNVERIFIED") } catch(e: Exception) { com.example.newsapp.domain.model.VerificationStatus.UNVERIFIED },
                 verificationMethod = it.verificationMethod,
                 trustedSigner = it.trustedSigner
             )
-        }
+        },
+        regionCode = regionCode,
+        sourceTier = sourceTier,
+        category = taxonomy?.categories?.firstOrNull()
     )
 }
 
-fun Article.toCacheEntity(feedKey: String, page: Int, sortOrder: Int, fetchedAt: Long): CachedFeedArticleEntity {
+fun Article.toCacheEntity(feedKey: String, sortOrder: Int, fetchedAt: Long): CachedFeedArticleEntity {
     return CachedFeedArticleEntity(
         feedKey = feedKey,
-        page = page,
+        backendId = backendId,
         url = url,
         author = author,
         content = content,
@@ -80,13 +85,17 @@ fun Article.toCacheEntity(feedKey: String, page: Int, sortOrder: Int, fetchedAt:
         fetchedAt = fetchedAt,
         verificationStatus = provenance?.status?.name ?: "UNVERIFIED",
         signatureProtocol = provenance?.verificationMethod,
-        trustedSigner = provenance?.trustedSigner
+        trustedSigner = provenance?.trustedSigner,
+        regionCode = regionCode,
+        sourceTier = sourceTier,
+        category = category
     )
 }
 
 fun CachedFeedArticleEntity.toDomainArticle(): Article {
     return Article(
         url = url,
+        backendId = backendId,
         author = author,
         content = content,
         description = description,
@@ -98,6 +107,9 @@ fun CachedFeedArticleEntity.toDomainArticle(): Article {
             status = try { com.example.newsapp.domain.model.VerificationStatus.valueOf(verificationStatus) } catch(e: Exception) { com.example.newsapp.domain.model.VerificationStatus.UNVERIFIED },
             verificationMethod = signatureProtocol,
             trustedSigner = trustedSigner
-        )
+        ),
+        regionCode = regionCode,
+        sourceTier = sourceTier,
+        category = category
     )
 }
