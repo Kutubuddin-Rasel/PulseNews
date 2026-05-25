@@ -7,14 +7,14 @@ import androidx.room.PrimaryKey
 @Entity(
     tableName = "cached_feed_articles",
     indices = [
-        Index(value = ["feedKey", "page", "url"], unique = true),
+        Index(value = ["feedKey", "backendId"], unique = true),
         Index(value = ["sourceName"])
     ]
 )
 data class CachedFeedArticleEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val feedKey: String,
-    val page: Int,
+    val backendId: String,
     val url: String,
     val author: String?,
     val content: String?,
@@ -29,5 +29,8 @@ data class CachedFeedArticleEntity(
     val relevanceScore: Float = 0f,
     @androidx.room.ColumnInfo(name = "verification_status") val verificationStatus: String = "UNVERIFIED",
     @androidx.room.ColumnInfo(name = "signature_protocol") val signatureProtocol: String? = null,
-    @androidx.room.ColumnInfo(name = "trusted_signer") val trustedSigner: String? = null
+    @androidx.room.ColumnInfo(name = "trusted_signer") val trustedSigner: String? = null,
+    val regionCode: String? = null,
+    val sourceTier: Int? = null,
+    val category: String? = null
 )
