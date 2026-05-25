@@ -4,14 +4,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.newsapp.data.repository.AlgorithmPreferencesRepository
@@ -22,10 +22,16 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import dagger.hilt.android.qualifiers.ApplicationContext
+import android.content.Context
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import com.example.newsapp.worker.ScoreRecalculationWorker
+
 @HiltViewModel
 class AlgorithmSettingsViewModel @Inject constructor(
     private val algoPrefsRepo: AlgorithmPreferencesRepository,
-    private val newsRepository: NewsRepository
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _preferences = mutableStateMapOf<String, Float>()
@@ -53,8 +59,9 @@ class AlgorithmSettingsViewModel @Inject constructor(
                 business = _preferences["business"] ?: 0.5f,
                 health = _preferences["health"] ?: 0.5f
             )
-            // Note: In an enterprise app, this would be an injected UseCase, but for this refactor we cast.
-            (newsRepository as? NewsRepositoryImpl)?.recalculateAllScores()
+            // Enqueue a WorkManager task to recalculate scores in the background (O(1) memory, bulk SQL)
+            val workRequest = OneTimeWorkRequestBuilder<ScoreRecalculationWorker>().build()
+            WorkManager.getInstance(context).enqueue(workRequest)
         }
     }
 }
@@ -73,7 +80,7 @@ fun AlgorithmSettingsScreen(
                 title = { Text("Feed Algorithm Engine") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
