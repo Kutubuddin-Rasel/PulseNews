@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
+import com.example.newsapp.data.util.AppTelemetry
 import com.example.newsapp.decodeNavUrl
 import com.example.newsapp.domain.model.UiEvent
 import com.example.newsapp.domain.repository.NewsRepository
@@ -29,7 +30,8 @@ import javax.inject.Inject
 class ArticleDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val newsRepository: NewsRepository,
-    private val savedArticleRepository: SavedArticleRepository
+    private val savedArticleRepository: SavedArticleRepository,
+    private val appTelemetry: AppTelemetry
 ) : ViewModel() {
 
     private val encodedUrl: String = savedStateHandle.get<String>("url").orEmpty()
@@ -77,6 +79,16 @@ class ArticleDetailViewModel @Inject constructor(
         val words = title.lowercase().replace(Regex("[^a-z0-9\\s]"), "").split("\\s+".toRegex())
         val significantWords = words.filter { it.length > 3 && it !in stopWords }
         return significantWords.take(3).joinToString(" ").ifEmpty { "politics" } // fallback
+    }
+
+    fun logInteraction(interactionType: String) {
+        article.value?.backendId?.let { id ->
+            appTelemetry.logInteraction(id, interactionType)
+        }
+    }
+
+    fun logRelatedInteraction(relatedBackendId: String, interactionType: String) {
+        appTelemetry.logInteraction(relatedBackendId, interactionType)
     }
 
     fun toggleSaved() {

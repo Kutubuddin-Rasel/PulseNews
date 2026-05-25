@@ -47,7 +47,8 @@ class HomeViewModel @Inject constructor(
     private val algoPrefsRepo: AlgorithmPreferencesRepository,
     private val privacyPrefsRepo: PrivacyPreferencesRepository,
     private val localEngagementTracker: com.example.newsapp.data.util.LocalEngagementTracker,
-    private val savedStateHandle: SavedStateHandle
+    private val savedStateHandle: SavedStateHandle,
+    private val appTelemetry: com.example.newsapp.data.util.AppTelemetry
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -171,10 +172,11 @@ class HomeViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(filter = filter)
     }
 
-    fun trackArticleClick() {
+    fun trackArticleClick(articleId: String) {
         val currentCategory = _uiState.value.filter.categoryId
         viewModelScope.launch {
             localEngagementTracker.incrementClick(currentCategory)
+            appTelemetry.logInteraction(articleId, "article_clicked")
         }
     }
 

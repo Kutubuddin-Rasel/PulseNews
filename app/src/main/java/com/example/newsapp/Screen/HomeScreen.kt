@@ -210,7 +210,7 @@ fun HomeScreen(navController: NavController) {
                                     ArticleCard(
                                         article = article,
                                         onClick = { 
-                                            viewModel.trackArticleClick()
+                                            viewModel.trackArticleClick(article.backendId)
                                             navController.navigateToArticleDetail(article.url ?: "") 
                                         }
                                     )
