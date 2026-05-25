@@ -6,12 +6,13 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import com.example.newsapp.Hilt.PrivacyDataStore
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class PrivacyPreferencesRepository @Inject constructor(
-    private val dataStore: DataStore<Preferences>
+    @PrivacyDataStore private val dataStore: DataStore<Preferences>
 ) {
     companion object {
         val KEY_TELEMETRY_CONSENT = booleanPreferencesKey("telemetry_consent_granted")
