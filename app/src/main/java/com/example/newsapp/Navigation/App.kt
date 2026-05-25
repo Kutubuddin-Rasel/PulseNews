@@ -14,7 +14,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -23,12 +22,14 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.newsapp.Routes
+import com.example.newsapp.Screen.AlgorithmSettingsScreen
 import com.example.newsapp.Screen.ArticleDetailScreen
 import com.example.newsapp.Screen.HomeScreen
+import com.example.newsapp.Screen.NotificationPreferencesScreen
+import com.example.newsapp.Screen.ProfileScreen
+import com.example.newsapp.Screen.PulseProfileScreen
 import com.example.newsapp.Screen.SavedArticle
 import com.example.newsapp.Screen.SettingsScreen
-import com.example.newsapp.Screen.NotificationPreferencesScreen
-import com.example.newsapp.Screen.PulseProfileScreen
 import com.example.newsapp.Screen.WebScreen
 
 @Composable
@@ -82,32 +83,37 @@ fun App() {
             composable(Routes.home) { HomeScreen(navController) }
             composable(Routes.saved) { SavedArticle(navController) }
             composable(Routes.profile) { PulseProfileScreen() }
-            composable(Routes.settings) { 
+            composable(Routes.settings) {
                 SettingsScreen(
                     onNavigateToNotifications = {
                         navController.navigate(Routes.notificationPreferences)
                     },
                     onNavigateToAlgorithm = {
-                        navController.navigate(Routes.algorithmPreferences)
+                        navController.navigate(Routes.algorithmSettings)
+                    },
+                    onNavigateToProfile = {
+                        navController.navigate(Routes.profileAuth)
                     }
-                ) 
+                )
             }
             composable(Routes.notificationPreferences) {
-                NotificationPreferencesScreen(onNavigateBack = {
-                    navController.popBackStack()
-                })
+                NotificationPreferencesScreen(onNavigateBack = { navController.popBackStack() })
             }
             composable(Routes.algorithmPreferences) {
-                com.example.newsapp.Screen.AlgorithmPreferencesScreen()
+                com.example.newsapp.Screen.AlgorithmPreferencesScreen(onNavigateBack = { navController.popBackStack() })
             }
-
+            composable(Routes.algorithmSettings) {
+                AlgorithmSettingsScreen(onNavigateBack = { navController.popBackStack() })
+            }
+            composable(Routes.profileAuth) {
+                ProfileScreen(onNavigateBack = { navController.popBackStack() })
+            }
             composable(
                 route = Routes.articleDetailPattern,
                 arguments = listOf(navArgument(Routes.articleUrlArg) { type = NavType.StringType })
             ) {
                 ArticleDetailScreen(navController)
             }
-
             composable(
                 route = Routes.webPagePattern,
                 arguments = listOf(navArgument(Routes.articleUrlArg) { type = NavType.StringType })

@@ -3,31 +3,31 @@ package com.example.newsapp.Screen
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.example.newsapp.ViewModel.SettingsViewModel
 import com.example.newsapp.ui.components.NewsBackground
 import com.example.newsapp.ui.components.enterpriseTopBarSpacing
 import com.example.newsapp.ui.tokens.NewsSpacing
-import androidx.compose.material3.Switch
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.example.newsapp.ViewModel.SettingsViewModel
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.foundation.layout.Row
-import androidx.compose.ui.Alignment
 
 @Composable
 fun SettingsScreen(
     onNavigateToNotifications: () -> Unit = {},
     onNavigateToAlgorithm: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val highContrastEnabled by viewModel.highContrastEnabled.collectAsState()
@@ -45,7 +45,27 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onBackground
             )
-            
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNavigateToProfile() },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(NewsSpacing.lg)) {
+                    Text(
+                        text = "Account & Sync",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Sign in and sync your saved articles across devices.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -65,7 +85,7 @@ fun SettingsScreen(
                     )
                 }
             }
-            
+
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -74,7 +94,7 @@ fun SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(NewsSpacing.lg)) {
                     Text(
-                        text = "Feed Algorithm",
+                        text = "Feed Algorithm Engine",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
