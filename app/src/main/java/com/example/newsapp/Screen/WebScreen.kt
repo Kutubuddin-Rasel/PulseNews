@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
@@ -216,7 +217,8 @@ fun WebScreen(navController: NavController) {
                             state = listState,
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(horizontal = NewsSpacing.lg)
+                                .padding(horizontal = NewsSpacing.lg),
+                            contentPadding = PaddingValues(bottom = 88.dp)
                         ) {
                             item {
                                 if (state.article.heroImageUrl != null) {

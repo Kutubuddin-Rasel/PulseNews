@@ -2,13 +2,12 @@ package com.example.newsapp.Screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.LocalFireDepartment
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -19,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.newsapp.ViewModel.PulseProfileViewModel
@@ -29,6 +29,8 @@ import com.example.newsapp.ui.tokens.NewsSpacing
 @Composable
 fun PulseProfileScreen(viewModel: PulseProfileViewModel = hiltViewModel()) {
     val profile by viewModel.profile.collectAsState()
+    val user by viewModel.currentUser.collectAsState()
+    val scrollState = rememberScrollState()
 
     NewsBackground(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -47,15 +49,66 @@ fun PulseProfileScreen(viewModel: PulseProfileViewModel = hiltViewModel()) {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .padding(horizontal = NewsSpacing.lg),
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = NewsSpacing.lg)
+                    .padding(bottom = NewsSpacing.xl),
                 verticalArrangement = Arrangement.spacedBy(NewsSpacing.lg)
             ) {
-                // Streaks Section
+                // Auth Section
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(NewsSpacing.lg),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(NewsSpacing.sm)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AccountCircle,
+                            contentDescription = "Account",
+                            modifier = Modifier.size(56.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        if (user != null) {
+                            Text(
+                                text = user?.displayName ?: user?.email ?: "Unknown User",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                text = "Syncing to cloud",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(NewsSpacing.xs))
+                            OutlinedButton(onClick = { viewModel.signOut() }) {
+                                Text("Sign Out")
+                            }
+                        } else {
+                            Text(
+                                text = "Sign in for cross-device sync",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(NewsSpacing.xs))
+                            Button(onClick = { viewModel.signIn() }) {
+                                Text("Sign in with Google")
+                            }
+                        }
+                    }
+                }
+
+                // Streak + Stats Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(NewsSpacing.md)
                 ) {
-                    // Current Streak
                     Card(
                         modifier = Modifier.weight(1f),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
@@ -66,11 +119,11 @@ fun PulseProfileScreen(viewModel: PulseProfileViewModel = hiltViewModel()) {
                         ) {
                             Icon(
                                 imageVector = Icons.Default.LocalFireDepartment,
-                                contentDescription = "Fire",
+                                contentDescription = "Streak",
                                 tint = Color(0xFFFF5722),
-                                modifier = Modifier.size(48.dp)
+                                modifier = Modifier.size(40.dp)
                             )
-                            Spacer(modifier = Modifier.height(NewsSpacing.sm))
+                            Spacer(modifier = Modifier.height(NewsSpacing.xs))
                             Text(
                                 text = "${profile.currentStreak}",
                                 style = MaterialTheme.typography.displayMedium,
@@ -85,7 +138,6 @@ fun PulseProfileScreen(viewModel: PulseProfileViewModel = hiltViewModel()) {
                         }
                     }
 
-                    // Stats
                     Column(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(NewsSpacing.md)
@@ -94,8 +146,6 @@ fun PulseProfileScreen(viewModel: PulseProfileViewModel = hiltViewModel()) {
                         StatBox(title = "Total Read", value = "${profile.totalArticlesRead} articles")
                     }
                 }
-
-                Spacer(modifier = Modifier.height(NewsSpacing.md))
 
                 // Badges Section
                 Text(
@@ -108,19 +158,31 @@ fun PulseProfileScreen(viewModel: PulseProfileViewModel = hiltViewModel()) {
                 val badges = getBadges(profile.totalArticlesRead, profile.categoryReadCounts)
 
                 if (badges.isEmpty()) {
-                    Text(
-                        text = "Read more articles to unlock badges!",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        horizontalArrangement = Arrangement.spacedBy(NewsSpacing.md),
-                        verticalArrangement = Arrangement.spacedBy(NewsSpacing.md)
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
-                        items(badges) { badge ->
-                            BadgeCard(badgeName = badge.name, description = badge.description)
+                        Text(
+                            text = "Read more articles to unlock badges!",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(NewsSpacing.lg)
+                        )
+                    }
+                } else {
+                    badges.chunked(2).forEach { row ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(NewsSpacing.md)
+                        ) {
+                            row.forEach { badge ->
+                                BadgeCard(
+                                    badgeName = badge.name,
+                                    description = badge.description,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            if (row.size == 1) Spacer(modifier = Modifier.weight(1f))
                         }
                     }
                 }
@@ -135,9 +197,7 @@ fun StatBox(title: String, value: String) {
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Column(
-            modifier = Modifier.padding(NewsSpacing.md)
-        ) {
+        Column(modifier = Modifier.padding(NewsSpacing.md)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.labelMedium,
@@ -155,8 +215,9 @@ fun StatBox(title: String, value: String) {
 }
 
 @Composable
-fun BadgeCard(badgeName: String, description: String) {
+fun BadgeCard(badgeName: String, description: String, modifier: Modifier = Modifier) {
     Card(
+        modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
     ) {
         Column(
@@ -179,16 +240,16 @@ fun BadgeCard(badgeName: String, description: String) {
             Spacer(modifier = Modifier.height(NewsSpacing.sm))
             Text(
                 text = badgeName,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = TextAlign.Center
             )
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = TextAlign.Center
             )
         }
     }
@@ -201,11 +262,10 @@ fun getBadges(totalRead: Int, categoryCounts: Map<String, Int>): List<Badge> {
     if (totalRead >= 1) badges.add(Badge("First Steps", "Read your first article"))
     if (totalRead >= 10) badges.add(Badge("Avid Reader", "Read 10 articles"))
     if (totalRead >= 50) badges.add(Badge("News Junkie", "Read 50 articles"))
-    
-    // Category badges
+
     val tech = categoryCounts["tech"] ?: 0
     if (tech >= 10) badges.add(Badge("Tech Guru", "Read 10 Tech articles"))
-    
+
     val sports = categoryCounts["sports"] ?: 0
     if (sports >= 10) badges.add(Badge("Sports Fan", "Read 10 Sports articles"))
 

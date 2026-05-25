@@ -315,10 +315,15 @@ fun ArticleCard(
                     horizontalArrangement = Arrangement.spacedBy(NewsSpacing.xs),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(article.taxonomy) { tag ->
+                    items(article.taxonomy.take(4)) { tag ->
                         androidx.compose.material3.SuggestionChip(
-                            onClick = { /* TODO: Filter */ },
-                            label = { Text(tag.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }) },
+                            onClick = { /* Filter by tag */ },
+                            label = {
+                                Text(
+                                    tag.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() },
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            },
                             colors = androidx.compose.material3.SuggestionChipDefaults.suggestionChipColors(
                                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
                                 labelColor = MaterialTheme.colorScheme.onSecondaryContainer

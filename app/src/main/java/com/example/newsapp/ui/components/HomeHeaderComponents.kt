@@ -179,6 +179,13 @@ fun FeedFilterBottomSheet(
             Spacer(modifier = Modifier.height(NewsSpacing.sm))
 
             if (trendingTopics.isNotEmpty()) {
+                Text(
+                    text = "Trending",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(NewsSpacing.xs))
                 FadedHorizontalRow {
                     trendingTopics.forEach { topic ->
                         androidx.compose.material3.SuggestionChip(
