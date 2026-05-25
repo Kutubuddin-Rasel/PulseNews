@@ -43,6 +43,11 @@ class SavedViewModel @Inject constructor(
                 }
             }
         }
+        
+        // Trigger lazy backend reconciliation on screen load
+        viewModelScope.launch {
+            savedArticleRepository.syncBookmarks()
+        }
     }
 
     fun delete(article: Article) {

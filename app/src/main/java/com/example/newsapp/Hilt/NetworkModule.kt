@@ -12,6 +12,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
+import com.google.gson.Gson
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -19,6 +20,10 @@ class NetworkModule {
     @Provides
     @Singleton
     fun provideTelemetry(privacyPrefs: com.example.newsapp.data.repository.PrivacyPreferencesRepository): AppTelemetry = AppTelemetry(privacyPrefs)
+
+    @Provides
+    @Singleton
+    fun provideGson(): Gson = Gson()
 
     @Provides
     @Singleton
@@ -35,13 +40,18 @@ class NetworkModule {
 
     @Provides
     @Singleton
-    fun providesOkHttpClient(requestTracingInterceptor: Interceptor): OkHttpClient {
+    fun providesOkHttpClient(
+        requestTracingInterceptor: Interceptor,
+        firebaseTokenInterceptor: FirebaseTokenInterceptor
+    ): OkHttpClient {
+        // Increased to 60 seconds to accommodate Render.com free-tier backend cold starts
         return OkHttpClient.Builder()
-            .connectTimeout(20, TimeUnit.SECONDS)
-            .readTimeout(20, TimeUnit.SECONDS)
-            .writeTimeout(20, TimeUnit.SECONDS)
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
             .addInterceptor(requestTracingInterceptor)
+            .addInterceptor(firebaseTokenInterceptor)
             .build()
     }
 
@@ -49,7 +59,7 @@ class NetworkModule {
     @Singleton
     fun providesRetrofit(okHttpClient: OkHttpClient): Retrofit {
         return Retrofit.Builder()
-            .baseUrl("https://pulsenews-backend.onrender.com/")
+            .baseUrl("https://pulsenewsbackend.me/")
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
