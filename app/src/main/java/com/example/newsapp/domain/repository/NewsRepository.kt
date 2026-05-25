@@ -12,4 +12,5 @@ interface NewsRepository {
     suspend fun cachedArticleByUrl(url: String): Article?
     suspend fun syncFirehose(): Result<Unit>
     suspend fun getNewsMetaLastUpdated(): Result<String?>
+    suspend fun getTrendingTopics(): Result<List<String>>
 }
