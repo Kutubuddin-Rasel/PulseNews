@@ -6,12 +6,13 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import com.example.newsapp.Hilt.EngagementDataStore
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class LocalEngagementTracker @Inject constructor(
-    private val dataStore: DataStore<Preferences>
+    @EngagementDataStore private val dataStore: DataStore<Preferences>
 ) {
     fun trackClick(categoryId: Int) {
         // Increment the counter for this category

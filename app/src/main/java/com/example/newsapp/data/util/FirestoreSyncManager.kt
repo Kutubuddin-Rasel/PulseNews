@@ -155,6 +155,7 @@ class FirestoreSyncManager @Inject constructor(
                     val lastReadDateEpochDay = snapshot.getLong("lastReadDateEpochDay") ?: 0L
                     val lastSyncedAt = snapshot.getLong("lastSyncedAt") ?: 0L
                     
+                    @Suppress("UNCHECKED_CAST")
                     val categoryCountsMap = snapshot.get("categoryReadCounts") as? Map<String, Int> ?: emptyMap()
                     
                     val profile = GamificationProfile(
