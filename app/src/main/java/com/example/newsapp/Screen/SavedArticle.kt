@@ -100,16 +100,14 @@ fun SavedArticle(navController: NavController) {
                                 key = { article -> article.url }
                             ) { article ->
                                 val dismissState = rememberSwipeToDismissBoxState(
-                                    positionalThreshold = { it * 0.25f },
-                                    confirmValueChange = { value ->
-                                        if (value == SwipeToDismissBoxValue.EndToStart || value == SwipeToDismissBoxValue.StartToEnd) {
-                                            viewModel.delete(article)
-                                            true
-                                        } else {
-                                            false
-                                        }
-                                    }
+                                    positionalThreshold = { it * 0.25f }
                                 )
+
+                                LaunchedEffect(dismissState.currentValue) {
+                                    if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart || dismissState.currentValue == SwipeToDismissBoxValue.StartToEnd) {
+                                        viewModel.delete(article)
+                                    }
+                                }
 
                                 SwipeToDismissBox(
                                     state = dismissState,

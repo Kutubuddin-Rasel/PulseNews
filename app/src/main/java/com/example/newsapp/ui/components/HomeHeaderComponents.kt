@@ -121,6 +121,7 @@ fun FeedFilterBottomSheet(
     query: String,
     selectedSource: String?,
     availableSources: List<String>,
+    trendingTopics: List<String> = emptyList(),
     onCategoryChange: (Int) -> Unit,
     onQueryChange: (String) -> Unit,
     onSourceChange: (String?) -> Unit,
@@ -176,6 +177,22 @@ fun FeedFilterBottomSheet(
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(NewsSpacing.sm))
+
+            if (trendingTopics.isNotEmpty()) {
+                FadedHorizontalRow {
+                    trendingTopics.forEach { topic ->
+                        androidx.compose.material3.SuggestionChip(
+                            onClick = {
+                                onQueryChange(topic)
+                                onSearch()
+                                onDismissRequest()
+                            },
+                            label = { Text("#$topic") }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(NewsSpacing.sm))
+            }
 
             SearchBlock(
                 query = query,

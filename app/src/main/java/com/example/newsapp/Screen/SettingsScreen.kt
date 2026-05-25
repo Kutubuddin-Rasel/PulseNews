@@ -17,7 +17,7 @@ import com.example.newsapp.ui.components.NewsBackground
 import com.example.newsapp.ui.components.enterpriseTopBarSpacing
 import com.example.newsapp.ui.tokens.NewsSpacing
 import androidx.compose.material3.Switch
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.newsapp.ViewModel.SettingsViewModel
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
