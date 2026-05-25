@@ -28,7 +28,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Share
@@ -114,7 +114,7 @@ fun ArticleDetailScreen(navController: NavController) {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             navController.navigateUp()
                         }) {
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
                     },
                     actions = {
@@ -182,15 +182,17 @@ fun ArticleDetailScreen(navController: NavController) {
                     .padding(paddingValues)
                     .padding(horizontal = NewsSpacing.lg)
             ) {
-                AsyncImage(
-                    model = item.urlToImage,
-                    contentDescription = "${item.title} hero image",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(220.dp)
-                )
+                if (!item.urlToImage.isNullOrBlank()) {
+                    AsyncImage(
+                        model = item.urlToImage,
+                        contentDescription = "${item.title} hero image",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(220.dp)
+                    )
 
-                Spacer(modifier = Modifier.height(NewsSpacing.md))
+                    Spacer(modifier = Modifier.height(NewsSpacing.md))
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = item.source.name,

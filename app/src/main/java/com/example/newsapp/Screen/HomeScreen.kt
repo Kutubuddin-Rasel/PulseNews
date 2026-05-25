@@ -235,11 +235,13 @@ fun HomeScreen(navController: NavController) {
 
             if (showFilterSheet) {
                 val availableSources by viewModel.availableSources.collectAsState()
+                val trendingTopics by viewModel.trendingTopics.collectAsState()
                 com.example.newsapp.ui.components.FeedFilterBottomSheet(
                     categoryId = uiState.filter.categoryId,
                     query = uiState.filter.queryInput,
                     selectedSource = uiState.filter.selectedSource,
                     availableSources = availableSources,
+                    trendingTopics = trendingTopics,
                     onCategoryChange = viewModel::setCategory,
                     onQueryChange = viewModel::updateQueryInput,
                     onSourceChange = viewModel::setSource,
