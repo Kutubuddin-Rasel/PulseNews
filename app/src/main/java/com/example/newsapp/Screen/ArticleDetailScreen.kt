@@ -166,6 +166,7 @@ fun ArticleDetailScreen(navController: NavController) {
                         .padding(NewsSpacing.lg),
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        viewModel.logInteraction("read_full_article")
                         navController.navigateToWebPage(item.url)
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
@@ -276,6 +277,7 @@ fun ArticleDetailScreen(navController: NavController) {
                                             .width(260.dp)
                                             .clickable {
                                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                viewModel.logRelatedInteraction(related.backendId, "article_clicked")
                                                 navController.navigateToArticleDetail(related.url ?: "")
                                             },
                                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
