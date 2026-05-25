@@ -11,8 +11,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
 
 sealed interface SavedUiEvent {
     data class UndoDelete(val article: Article) : SavedUiEvent
@@ -24,8 +27,8 @@ class SavedViewModel @Inject constructor(
     private val savedArticleRepository: SavedArticleRepository
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow<UiState<List<Article>>>(UiState.Loading)
-    val state: StateFlow<UiState<List<Article>>> = _state
+    private val _state = MutableStateFlow<UiState<ImmutableList<Article>>>(UiState.Loading)
+    val state: StateFlow<UiState<ImmutableList<Article>>> = _state
 
     private val _events = MutableSharedFlow<SavedUiEvent>()
     val events: SharedFlow<SavedUiEvent> = _events
@@ -36,7 +39,7 @@ class SavedViewModel @Inject constructor(
                 _state.value = if (saved.isEmpty()) {
                     UiState.Empty("No saved articles yet.")
                 } else {
-                    UiState.Success(saved)
+                    UiState.Success(saved.toImmutableList())
                 }
             }
         }

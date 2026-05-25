@@ -174,6 +174,44 @@ fun ErrorState(message: String, retryable: Boolean, onRetry: () -> Unit) {
     }
 }
 
+private fun getRegionEmoji(regionCode: String?): String {
+    return when(regionCode?.uppercase()) {
+        "US" -> "🇺🇸"
+        "UK", "GB" -> "🇬🇧"
+        "BD" -> "🇧🇩"
+        "IN" -> "🇮🇳"
+        "AU" -> "🇦🇺"
+        "CA" -> "🇨🇦"
+        "JP" -> "🇯🇵"
+        "SG" -> "🇸🇬"
+        "DE" -> "🇩🇪"
+        "FR" -> "🇫🇷"
+        "IT" -> "🇮🇹"
+        "ES" -> "🇪🇸"
+        "BR" -> "🇧🇷"
+        "MX" -> "🇲🇽"
+        "ZA" -> "🇿🇦"
+        "NG" -> "🇳🇬"
+        "KE" -> "🇰🇪"
+        "AE" -> "🇦🇪"
+        "SA" -> "🇸🇦"
+        "EG" -> "🇪🇬"
+        "TR" -> "🇹🇷"
+        "RU" -> "🇷🇺"
+        "CN" -> "🇨🇳"
+        "KR" -> "🇰🇷"
+        "ID" -> "🇮🇩"
+        "MY" -> "🇲🇾"
+        "TH" -> "🇹🇭"
+        "VN" -> "🇻🇳"
+        "PH" -> "🇵🇭"
+        "PK" -> "🇵🇰"
+        "NZ" -> "🇳🇿"
+        "GLOBAL" -> "🌍"
+        else -> ""
+    }
+}
+
 @Composable
 fun ArticleCard(
     article: Article,
@@ -197,21 +235,23 @@ fun ArticleCard(
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = NewsElevation.card)
     ) {
         Column(modifier = Modifier.padding(NewsSpacing.lg)) {
-            AsyncImage(
-                model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                    .data(article.urlToImage)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = "${article.title} thumbnail image",
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(172.dp)
-                    .clip(MaterialTheme.shapes.medium)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            )
+            if (!article.urlToImage.isNullOrBlank()) {
+                AsyncImage(
+                    model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                        .data(article.urlToImage)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "${article.title} thumbnail image",
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(172.dp)
+                        .clip(MaterialTheme.shapes.medium)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                )
 
-            Spacer(modifier = Modifier.height(NewsSpacing.sm))
+                Spacer(modifier = Modifier.height(NewsSpacing.sm))
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = article.source.name,
@@ -220,7 +260,7 @@ fun ArticleCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (article.provenance?.status == com.example.newsapp.domain.model.VerificationStatus.SOURCE_VERIFIED) {
+                if (article.provenance?.status == com.example.newsapp.domain.model.VerificationStatus.SOURCE_VERIFIED || article.sourceTier == 1 || article.sourceTier == 2) {
                     Spacer(modifier = Modifier.width(4.dp))
                     Icon(
                         imageVector = androidx.compose.material.icons.Icons.Default.CheckCircle,
@@ -228,6 +268,16 @@ fun ArticleCard(
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(12.dp)
                     )
+                }
+                
+                if (!article.regionCode.isNullOrEmpty()) {
+                    val emoji = getRegionEmoji(article.regionCode)
+                    if (emoji.isNotEmpty()) {
+                        Text(
+                            text = " $emoji",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
                 }
                 Text(
                     text = "  •  ${formatDate(article.publishedAt)}",
@@ -256,6 +306,19 @@ fun ArticleCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
+                )
+            }
+            
+            if (!article.category.isNullOrEmpty()) {
+                Spacer(modifier = Modifier.height(NewsSpacing.sm))
+                androidx.compose.material3.SuggestionChip(
+                    onClick = { /* TODO: Filter */ },
+                    label = { Text(article.category.replaceFirstChar { it.uppercase() }) },
+                    colors = androidx.compose.material3.SuggestionChipDefaults.suggestionChipColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        labelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    ),
+                    border = null
                 )
             }
 
@@ -293,9 +356,13 @@ fun PagingFooter(isVisible: Boolean) {
 fun formatDate(publishedAt: String?): String {
     if (publishedAt.isNullOrBlank()) return "Unknown date"
     return try {
-        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
-        val dateTime = LocalDateTime.parse(publishedAt, formatter)
-        val zonedDateTime = ZonedDateTime.of(dateTime, ZoneOffset.UTC)
+        // Try RFC_1123 first (e.g. "Sun, 24 May 2026 10:39:23 +0000")
+        val zonedDateTime = try {
+            ZonedDateTime.parse(publishedAt, DateTimeFormatter.RFC_1123_DATE_TIME)
+        } catch (e: Exception) {
+            // Fallback to ISO-8601 (e.g. "2026-05-24T12:00:28.472Z")
+            ZonedDateTime.parse(publishedAt, DateTimeFormatter.ISO_DATE_TIME)
+        }
         val outputFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy")
         zonedDateTime.format(outputFormatter)
     } catch (_: Exception) {

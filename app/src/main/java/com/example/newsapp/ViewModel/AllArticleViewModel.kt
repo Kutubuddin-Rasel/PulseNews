@@ -16,18 +16,20 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
 
 @HiltViewModel
 class AllArticleViewModel @Inject constructor(
     private val savedArticleRepository: SavedArticleRepository
 ) : ViewModel() {
 
-    val state: StateFlow<UiState<List<Article>>> = savedArticleRepository.observeSavedArticles()
+    val state: StateFlow<UiState<ImmutableList<Article>>> = savedArticleRepository.observeSavedArticles()
         .map { articles ->
             if (articles.isEmpty()) {
                 UiState.Empty("No saved articles yet.")
             } else {
-                UiState.Success(articles)
+                UiState.Success(articles.toImmutableList())
             }
         }
         .catch {

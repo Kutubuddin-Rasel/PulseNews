@@ -71,6 +71,9 @@ class HomeViewModel @Inject constructor(
     private val _telemetryConsent = MutableStateFlow<Boolean?>(true)
     val telemetryConsent: StateFlow<Boolean?> = _telemetryConsent
 
+    private val _trendingTopics = MutableStateFlow<List<String>>(emptyList())
+    val trendingTopics: StateFlow<List<String>> = _trendingTopics
+
     init {
         viewModelScope.launch {
             algoPrefsRepo.preferences.collectLatest { prefs ->
@@ -83,6 +86,17 @@ class HomeViewModel @Inject constructor(
             }
         }
         
+        viewModelScope.launch {
+            try {
+                val response = newsRepository.getTrendingTopics()
+                if (response.isSuccess) {
+                    _trendingTopics.value = response.getOrNull() ?: emptyList()
+                }
+            } catch (e: Exception) {
+                // Ignore failure for trending topics, it's non-critical
+            }
+        }
+
         // Active Foreground Poller for Real-Time Edge Delivery
         viewModelScope.launch {
             var lastKnownUpdatedTime: String? = null
