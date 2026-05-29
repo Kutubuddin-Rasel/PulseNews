@@ -12,6 +12,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.example.newsapp.domain.util.SettingsManager
+import com.example.newsapp.domain.util.ThemePreference
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -25,7 +26,11 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         setContent {
             val highContrastEnabled by settingsManager.highContrastEnabled.collectAsState(initial = false)
-            NewsAppTheme(highContrast = highContrastEnabled) {
+            val themePreference by settingsManager.themePreference.collectAsState(initial = ThemePreference.SYSTEM)
+            NewsAppTheme(
+                highContrast = highContrastEnabled,
+                themePreference = themePreference
+            ) {
                 App()
             }
         }
