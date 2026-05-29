@@ -2,7 +2,7 @@ package com.example.newsapp.Screen
 
 import android.content.Intent
 import android.net.Uri
-import android.widget.Toast
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -47,13 +47,16 @@ fun ArticleDetailScreen(navController: NavController) {
     val haptic = LocalHapticFeedback.current
     val scrollState = rememberScrollState()
 
+    val snackbar = LocalPulseSnackbar.current
+    val scope = rememberCoroutineScope()
+
     LaunchedEffect(vm) {
         vm.events.collect {
             val msg = when (val e = it) {
                 is UiEvent.AlreadySaved, is UiEvent.Saved, is UiEvent.DeleteFailed,
                 is UiEvent.NetworkError, is UiEvent.Generic -> e.message
             }
-            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            snackbar.showSnackbar(msg)
         }
     }
 
@@ -88,7 +91,7 @@ fun ArticleDetailScreen(navController: NavController) {
                         onOpenExternal = {
                             runCatching {
                                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(item.url)))
-                            }.onFailure { Toast.makeText(context, "Unable to open browser", Toast.LENGTH_SHORT).show() }
+                            }.onFailure { scope.launch { snackbar.showSnackbar("Unable to open browser") } }
                         },
                     )
                     ReaderProgressStrip(progress = progress)

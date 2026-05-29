@@ -1,7 +1,7 @@
 package com.example.newsapp.Screen
 
-import android.widget.Toast
 import androidx.compose.animation.*
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -46,8 +46,11 @@ fun HomeScreen(navController: NavController) {
     LaunchedEffect(isRefreshing) {
         if (isRefreshing) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
     }
+    val snackbar = com.example.newsapp.ui.components.LocalPulseSnackbar.current
+    val scope = rememberCoroutineScope()
+
     LaunchedEffect(vm) {
-        vm.events.collect { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+        vm.events.collect { snackbar.showSnackbar(it) }
     }
 
     if (telemetryConsent == null) {
@@ -68,7 +71,7 @@ fun HomeScreen(navController: NavController) {
                     onSearchClick = { showFilterSheet = true },
                     onRefresh = {
                         if (canRefresh) articles.refresh()
-                        else Toast.makeText(context, "Refresh only in ‘For You’", Toast.LENGTH_SHORT).show()
+                        else scope.launch { snackbar.showSnackbar("Refresh only in ‘For You’") }
                     },
                     onOpenFilters = { showFilterSheet = true },
                 )
