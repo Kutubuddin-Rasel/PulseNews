@@ -1,78 +1,302 @@
 package com.example.newsapp.ui.components
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.minimumInteractiveComponentSize
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material3.Icon
-import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.animation.animateContentSize
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.example.newsapp.domain.model.VerificationStatus
 import com.example.newsapp.module.Article
-import com.example.newsapp.ui.tokens.NewsElevation
-import com.example.newsapp.ui.tokens.NewsRadius
-import com.example.newsapp.ui.tokens.NewsSpacing
+import com.example.newsapp.ui.theme.AccentGradient
+import com.example.newsapp.ui.theme.MetaMono
+import com.example.newsapp.ui.tokens.*
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
+enum class ArticleCardVariant { Standard, Featured, Compact }
+
 @Composable
 fun NewsBackground(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Box(
+    Box(modifier = modifier.background(MaterialTheme.colorScheme.background)) { content() }
+}
+
+// ───────────────────────────────────────────────────────────
+// ARTICLE CARD — one composable, three variants
+// ───────────────────────────────────────────────────────────
+@Composable
+fun ArticleCard(
+    article: Article,
+    modifier: Modifier = Modifier,
+    variant: ArticleCardVariant = ArticleCardVariant.Standard,
+    onClick: () -> Unit,
+    onSave: (() -> Unit)? = null,
+    onShare: (() -> Unit)? = null,
+    isSaved: Boolean = false,
+) {
+    val haptic = LocalHapticFeedback.current
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) NewsMotion.pressScale else 1f,
+        animationSpec = tween(NewsMotion.fast, easing = NewsMotion.standardEasing),
+        label = "press"
+    )
+
+    Surface(
         modifier = modifier
-            .background(color = MaterialTheme.colorScheme.background)
+            .fillMaxWidth()
+            .padding(horizontal = NewsSpacing.lg)
+            .scale(scale)
+            .clip(RoundedCornerShape(NewsRadius.card))
+            .border(NewsStroke.thin, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(NewsRadius.card))
+            .clickable(interactionSource = interaction, indication = LocalIndication.current) {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onClick()
+            }
+            .semantics(mergeDescendants = true) {},
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        shape = RoundedCornerShape(NewsRadius.card),
     ) {
-        content()
+        Column {
+            if (variant == ArticleCardVariant.Featured) {
+                Box(Modifier.fillMaxWidth().height(4.dp).background(AccentGradient))
+            }
+            Column(Modifier.padding(NewsSpacing.lg)) {
+                if (variant != ArticleCardVariant.Compact) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(article.urlToImage).crossfade(true).build(),
+                        contentDescription = "${article.title} thumbnail",
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(if (variant == ArticleCardVariant.Featured) NewsImage.featuredHeight else NewsImage.heroHeight)
+                            .clip(RoundedCornerShape(NewsRadius.md))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    )
+                    Spacer(Modifier.height(NewsSpacing.md))
+                }
+
+                if (variant == ArticleCardVariant.Featured) {
+                    Box(
+                        Modifier.background(AccentGradient, RoundedCornerShape(NewsRadius.pill))
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                    ) {
+                        Text("TOP STORY", color = androidx.compose.ui.graphics.Color.White, style = MetaMono)
+                    }
+                    Spacer(Modifier.height(NewsSpacing.sm))
+                }
+
+                ArticleMetaRow(article)
+
+                Spacer(Modifier.height(NewsSpacing.xs))
+                Text(
+                    text = article.title.orEmpty(),
+                    style = if (variant == ArticleCardVariant.Featured)
+                        MaterialTheme.typography.headlineMedium
+                    else if (variant == ArticleCardVariant.Compact)
+                        MaterialTheme.typography.titleLarge
+                    else
+                        MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = if (variant == ArticleCardVariant.Compact) 2 else 3,
+                    overflow = TextOverflow.Ellipsis,
+                    fontWeight = FontWeight.Medium,
+                )
+
+                if (variant != ArticleCardVariant.Compact && !article.description.isNullOrBlank()) {
+                    Spacer(Modifier.height(NewsSpacing.xs))
+                    Text(
+                        text = article.description!!,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                if (variant != ArticleCardVariant.Compact) {
+                    Spacer(Modifier.height(NewsSpacing.md))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Spacer(Modifier.height(NewsSpacing.sm))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CategoryPill(article.taxonomy?.firstOrNull() ?: "")
+                        Row(horizontalArrangement = Arrangement.spacedBy(NewsSpacing.xs)) {
+                            onSave?.let {
+                                IconAction(
+                                    icon = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                    description = if (isSaved) "Saved" else "Save article",
+                                    tint = if (isSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    onClick = it,
+                                )
+                            }
+                            onShare?.let {
+                                IconAction(Icons.Filled.IosShare, "Share", MaterialTheme.colorScheme.onSurfaceVariant, it)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
-fun StateBanner(message: String, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = NewsSpacing.md),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+private fun ArticleMetaRow(article: Article) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = article.source.name.uppercase(),
+            style = MetaMono.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+        if (article.provenance?.status == VerificationStatus.SOURCE_VERIFIED) {
+            VerifiedDot()
+        }
+        Box(Modifier.size(2.dp).clip(androidx.compose.foundation.shape.CircleShape)
+            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .5f)))
+        Text(
+            text = formatDate(article.publishedAt).uppercase(),
+            style = MetaMono.copy(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .75f)),
+        )
+    }
+}
+
+@Composable
+private fun VerifiedDot() {
+    Box(
+        Modifier.size(10.dp).clip(androidx.compose.foundation.shape.CircleShape)
+            .background(MaterialTheme.colorScheme.primary)
+            .border(2.dp, MaterialTheme.colorScheme.surfaceContainerLowest, androidx.compose.foundation.shape.CircleShape)
+    )
+}
+
+@Composable
+private fun CategoryPill(text: String) {
+    if (text.isBlank()) return
+    Surface(
+        color = MaterialTheme.colorScheme.primaryContainer,
+        shape = RoundedCornerShape(NewsRadius.pill),
     ) {
         Text(
-            text = message,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
-            modifier = Modifier.padding(horizontal = NewsSpacing.md, vertical = NewsSpacing.sm)
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
         )
+    }
+}
+
+@Composable
+private fun IconAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    tint: androidx.compose.ui.graphics.Color,
+    onClick: () -> Unit,
+) {
+    val haptic = LocalHapticFeedback.current
+    IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onClick() }) {
+        Icon(icon, contentDescription = description, tint = tint, modifier = Modifier.size(20.dp))
+    }
+}
+
+// ───────────────────────────────────────────────────────────
+// STATES — banner / empty / error / paging / skeleton
+// ───────────────────────────────────────────────────────────
+@Composable
+fun StateBanner(message: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.fillMaxWidth().padding(horizontal = NewsSpacing.lg),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        shape = RoundedCornerShape(NewsRadius.sm),
+    ) {
+        Row(
+            Modifier.padding(horizontal = NewsSpacing.md, vertical = NewsSpacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.size(6.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                .background(MaterialTheme.colorScheme.onSecondaryContainer))
+            Spacer(Modifier.width(NewsSpacing.sm))
+            Text(
+                message,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+        }
+    }
+}
+
+@Composable
+fun EmptyState(title: String, body: String, actionText: String? = null, onAction: (() -> Unit)? = null) {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = NewsSpacing.xl, vertical = NewsSpacing.xl),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
+    ) {
+        Text(title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
+        Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (actionText != null && onAction != null) {
+            Spacer(Modifier.height(NewsSpacing.xs))
+            FilledTonalButton(onClick = onAction, shape = RoundedCornerShape(NewsRadius.pill)) {
+                Text(actionText, style = MaterialTheme.typography.labelLarge)
+            }
+        }
+    }
+}
+
+@Composable
+fun ErrorState(title: String, body: String, retryable: Boolean, onRetry: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = NewsSpacing.xl, vertical = NewsSpacing.xl),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
+    ) {
+        Box(Modifier.size(10.dp).clip(androidx.compose.foundation.shape.CircleShape)
+            .background(MaterialTheme.colorScheme.error))
+        Text(title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.error)
+        Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (retryable) {
+            OutlinedButton(
+                onClick = onRetry,
+                shape = RoundedCornerShape(NewsRadius.pill),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+            ) {
+                Text("Retry now", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelLarge)
+            }
+        }
     }
 }
 
@@ -80,269 +304,36 @@ fun StateBanner(message: String, modifier: Modifier = Modifier) {
 fun FeedSkeleton(count: Int = 5) {
     LazyColumn(
         contentPadding = PaddingValues(vertical = NewsSpacing.sm),
-        verticalArrangement = Arrangement.spacedBy(NewsSpacing.sm)
+        verticalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
+        modifier = Modifier.semantics { contentDescription = "Loading articles" }
     ) {
-        items((0 until count).toList()) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = NewsSpacing.md),
-                shape = MaterialTheme.shapes.large,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Column(modifier = Modifier.padding(NewsSpacing.md)) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(140.dp)
-                            .clip(MaterialTheme.shapes.medium)
-                            .background(MaterialTheme.colorScheme.surface)
-                    )
-                    Spacer(modifier = Modifier.height(NewsSpacing.sm))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(0.75f)
-                            .height(14.dp)
-                            .clip(MaterialTheme.shapes.small)
-                            .background(MaterialTheme.colorScheme.surface)
-                    )
-                    Spacer(modifier = Modifier.height(NewsSpacing.sm))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(0.95f)
-                            .height(12.dp)
-                            .clip(MaterialTheme.shapes.small)
-                            .background(MaterialTheme.colorScheme.surface)
-                    )
-                }
-            }
-        }
+        items((0 until count).toList()) { SkeletonCard() }
     }
 }
 
 @Composable
-fun EmptyState(message: String, actionText: String? = null, onAction: (() -> Unit)? = null) {
-    val haptic = LocalHapticFeedback.current
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = NewsSpacing.xl, vertical = NewsSpacing.xl),
-        horizontalAlignment = Alignment.CenterHorizontally
+private fun SkeletonCard() {
+    val infinite = rememberInfiniteTransition("skel")
+    val alpha by infinite.animateFloat(
+        initialValue = 0.08f, targetValue = 0.18f,
+        animationSpec = infiniteRepeatable(tween(1400, easing = LinearEasing), RepeatMode.Reverse),
+        label = "alpha",
+    )
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = NewsSpacing.lg).clearAndSetSemantics { },
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        shape = RoundedCornerShape(NewsRadius.card),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
-        Text(message, color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleMedium)
-        if (actionText != null && onAction != null) {
-            Spacer(modifier = Modifier.height(NewsSpacing.sm))
-            AssistChip(
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onAction()
-                },
-                label = { Text(actionText) },
-                colors = AssistChipDefaults.assistChipColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    labelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            )
-        }
-    }
-}
-
-@Composable
-fun ErrorState(message: String, retryable: Boolean, onRetry: () -> Unit) {
-    val haptic = LocalHapticFeedback.current
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = NewsSpacing.xl, vertical = NewsSpacing.xl),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.titleSmall)
-        if (retryable) {
-            Spacer(modifier = Modifier.height(NewsSpacing.sm))
-            AssistChip(
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onRetry()
-                },
-                label = { Text("Retry") },
-                colors = AssistChipDefaults.assistChipColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    labelColor = MaterialTheme.colorScheme.onErrorContainer
-                )
-            )
-        }
-    }
-}
-
-private fun getRegionEmoji(regionCode: String?): String {
-    return when(regionCode?.uppercase()) {
-        "US" -> "🇺🇸"
-        "UK", "GB" -> "🇬🇧"
-        "BD" -> "🇧🇩"
-        "IN" -> "🇮🇳"
-        "AU" -> "🇦🇺"
-        "CA" -> "🇨🇦"
-        "JP" -> "🇯🇵"
-        "SG" -> "🇸🇬"
-        "DE" -> "🇩🇪"
-        "FR" -> "🇫🇷"
-        "IT" -> "🇮🇹"
-        "ES" -> "🇪🇸"
-        "BR" -> "🇧🇷"
-        "MX" -> "🇲🇽"
-        "ZA" -> "🇿🇦"
-        "NG" -> "🇳🇬"
-        "KE" -> "🇰🇪"
-        "AE" -> "🇦🇪"
-        "SA" -> "🇸🇦"
-        "EG" -> "🇪🇬"
-        "TR" -> "🇹🇷"
-        "RU" -> "🇷🇺"
-        "CN" -> "🇨🇳"
-        "KR" -> "🇰🇷"
-        "ID" -> "🇮🇩"
-        "MY" -> "🇲🇾"
-        "TH" -> "🇹🇭"
-        "VN" -> "🇻🇳"
-        "PH" -> "🇵🇭"
-        "PK" -> "🇵🇰"
-        "NZ" -> "🇳🇿"
-        "GLOBAL" -> "🌍"
-        else -> ""
-    }
-}
-
-@Composable
-fun ArticleCard(
-    article: Article,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-    trailing: (@Composable () -> Unit)? = null
-) {
-    val haptic = LocalHapticFeedback.current
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = NewsSpacing.md)
-            .minimumInteractiveComponentSize()
-            .animateContentSize()
-            .clickable {
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onClick()
-            }
-            .semantics(mergeDescendants = true) {},
-        shape = MaterialTheme.shapes.large,
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = NewsElevation.card)
-    ) {
-        Column(modifier = Modifier.padding(NewsSpacing.lg)) {
-            if (!article.urlToImage.isNullOrBlank()) {
-                AsyncImage(
-                    model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                        .data(article.urlToImage)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = "${article.title} thumbnail image",
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(172.dp)
-                        .clip(MaterialTheme.shapes.medium)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                )
-
-                Spacer(modifier = Modifier.height(NewsSpacing.sm))
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = article.source.name,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.secondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (article.provenance?.status == com.example.newsapp.domain.model.VerificationStatus.SOURCE_VERIFIED || article.sourceTier == 1 || article.sourceTier == 2) {
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        imageVector = androidx.compose.material.icons.Icons.Default.CheckCircle,
-                        contentDescription = "Verified Publisher",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(12.dp)
-                    )
-                }
-                
-                if (!article.regionCode.isNullOrEmpty()) {
-                    val emoji = getRegionEmoji(article.regionCode)
-                    if (emoji.isNotEmpty()) {
-                        Text(
-                            text = " $emoji",
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
-                }
-                Text(
-                    text = "  •  ${formatDate(article.publishedAt)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            Spacer(modifier = Modifier.height(NewsSpacing.xs))
-            Text(
-                text = article.title,
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            if (!article.description.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(NewsSpacing.xs))
-                Text(
-                    text = article.description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            
-            if (!article.taxonomy.isNullOrEmpty()) {
-                Spacer(modifier = Modifier.height(NewsSpacing.sm))
-                androidx.compose.foundation.lazy.LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(NewsSpacing.xs),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(article.taxonomy.take(4)) { tag ->
-                        androidx.compose.material3.SuggestionChip(
-                            onClick = { /* Filter by tag */ },
-                            label = {
-                                Text(
-                                    tag.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() },
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            },
-                            colors = androidx.compose.material3.SuggestionChipDefaults.suggestionChipColors(
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                labelColor = MaterialTheme.colorScheme.onSecondaryContainer
-                            ),
-                            border = null
-                        )
-                    }
-                }
-            }
-
-            if (trailing != null) {
-                Spacer(modifier = Modifier.height(NewsSpacing.sm))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    trailing()
-                }
-            }
+        Column(Modifier.padding(NewsSpacing.lg), verticalArrangement = Arrangement.spacedBy(NewsSpacing.sm)) {
+            Box(Modifier.fillMaxWidth().height(NewsImage.heroHeight).clip(RoundedCornerShape(NewsRadius.md))
+                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)))
+            Box(Modifier.fillMaxWidth(0.4f).height(10.dp).clip(RoundedCornerShape(NewsRadius.xs))
+                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)))
+            Box(Modifier.fillMaxWidth(0.9f).height(14.dp).clip(RoundedCornerShape(NewsRadius.xs))
+                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)))
+            Box(Modifier.fillMaxWidth(0.7f).height(12.dp).clip(RoundedCornerShape(NewsRadius.xs))
+                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)))
         }
     }
 }
@@ -350,34 +341,36 @@ fun ArticleCard(
 @Composable
 fun PagingFooter(isVisible: Boolean) {
     if (!isVisible) return
-
+    val infinite = rememberInfiniteTransition("paging")
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = NewsSpacing.md),
-        horizontalArrangement = Arrangement.Center
+        Modifier.fillMaxWidth().padding(vertical = NewsSpacing.md),
+        horizontalArrangement = Arrangement.Center,
     ) {
-        CircularProgressIndicator(
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(48.dp),
-            strokeWidth = 2.dp
-        )
+        listOf(0, 150, 300).forEach { delay ->
+            val a by infinite.animateFloat(
+                initialValue = 0.3f, targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    tween(1200, easing = NewsMotion.standardEasing, delayMillis = delay),
+                    RepeatMode.Reverse,
+                ),
+                label = "dot$delay",
+            )
+            Box(
+                Modifier.padding(horizontal = 3.dp).size(6.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = a))
+            )
+        }
     }
 }
 
+// ───────────────────────────────────────────────────────────
 fun formatDate(publishedAt: String?): String {
-    if (publishedAt.isNullOrBlank()) return "Unknown date"
+    if (publishedAt.isNullOrBlank()) return "Unknown"
     return try {
-        // Try RFC_1123 first (e.g. "Sun, 24 May 2026 10:39:23 +0000")
-        val zonedDateTime = try {
-            ZonedDateTime.parse(publishedAt, DateTimeFormatter.RFC_1123_DATE_TIME)
-        } catch (e: Exception) {
-            // Fallback to ISO-8601 (e.g. "2026-05-24T12:00:28.472Z")
-            ZonedDateTime.parse(publishedAt, DateTimeFormatter.ISO_DATE_TIME)
-        }
-        val outputFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy")
-        zonedDateTime.format(outputFormatter)
-    } catch (_: Exception) {
-        "Unknown date"
-    }
+        val f = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
+        val dt = LocalDateTime.parse(publishedAt, f)
+        val z = ZonedDateTime.of(dt, ZoneOffset.UTC)
+        z.format(DateTimeFormatter.ofPattern("MMM d · HH:mm 'GMT'"))
+    } catch (_: Exception) { "Unknown" }
 }

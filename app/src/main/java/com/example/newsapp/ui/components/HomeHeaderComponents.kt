@@ -1,382 +1,223 @@
 package com.example.newsapp.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.TopAppBarScrollBehavior
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import com.example.newsapp.ViewModel.FeedMode
-import com.example.newsapp.ui.tokens.NewsSpacing
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.dp
+import com.example.newsapp.ui.theme.MetaMono
+import com.example.newsapp.ui.tokens.*
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
-fun Modifier.enterpriseTopBarSpacing(): Modifier {
-    return this
-        .statusBarsPadding()
-        .padding(top = NewsSpacing.sm)
-}
-
-@Composable
-fun InsetAwareHeaderContainer(
-    modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .enterpriseTopBarSpacing()
-            .padding(start = NewsSpacing.lg, end = NewsSpacing.lg, bottom = NewsSpacing.md),
-        content = content
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeHeader(
+    selectedCategoryId: Int,
+    categories: List<Pair<Int, String>>,
+    onCategoryClick: (Int) -> Unit,
+    onSearchClick: () -> Unit,
     onRefresh: () -> Unit,
-    scrollBehavior: TopAppBarScrollBehavior? = null
+    onOpenFilters: () -> Unit,
 ) {
-    TopAppBar(
-        title = {
-            Column {
-                Text(
-                    text = "PulseNews",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = "Real-time coverage with offline resilience",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = NewsSpacing.xs)
-                )
-            }
-        },
-        actions = {
-            HeaderActionButton(onRefresh = onRefresh)
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = Color.Transparent,
-            scrolledContainerColor = MaterialTheme.colorScheme.surface
-        ),
-        scrollBehavior = scrollBehavior
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun FeedFilterBottomSheet(
-    categoryId: Int,
-    query: String,
-    selectedSource: String?,
-    availableSources: List<String>,
-    trendingTopics: List<String> = emptyList(),
-    onCategoryChange: (Int) -> Unit,
-    onQueryChange: (String) -> Unit,
-    onSourceChange: (String?) -> Unit,
-    onSearch: () -> Unit,
-    onDismissRequest: () -> Unit
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    
-    ModalBottomSheet(
-        onDismissRequest = onDismissRequest,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
+    Column(
+        Modifier.fillMaxWidth().statusBarsPadding().padding(top = NewsSpacing.md)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = NewsSpacing.lg, vertical = NewsSpacing.md)
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = NewsSpacing.lg),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(
-                text = "Virtual Categories",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(NewsSpacing.sm))
-            
-            // Render the 7 virtual categories
-            val virtualCategories = listOf(
-                1 to "For You",
-                2 to "Technology",
-                3 to "Business",
-                4 to "Politics",
-                5 to "Sports",
-                6 to "Entertainment",
-                7 to "Health & Science"
-            )
-            
-            FadedHorizontalRow {
-                virtualCategories.forEach { (id, name) ->
-                    EnterprisePill(
-                        text = name,
-                        selected = categoryId == id,
-                        onClick = { onCategoryChange(id) }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(NewsSpacing.md))
-            Text(
-                text = "Keyword Search",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(NewsSpacing.sm))
-
-            if (trendingTopics.isNotEmpty()) {
+            Column(Modifier.weight(1f)) {
+                Wordmark()
+                Spacer(Modifier.height(NewsSpacing.xs))
                 Text(
-                    text = "Trending",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE · d MMMM yyyy")).uppercase(),
+                    style = MetaMono,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(modifier = Modifier.height(NewsSpacing.xs))
-                FadedHorizontalRow {
-                    trendingTopics.forEach { topic ->
-                        androidx.compose.material3.SuggestionChip(
-                            onClick = {
-                                onQueryChange(topic)
-                                onSearch()
-                                onDismissRequest()
-                            },
-                            label = { Text("#$topic") }
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(NewsSpacing.sm))
             }
-
-            SearchBlock(
-                query = query,
-                onQueryChange = onQueryChange,
-                onSearch = {
-                    onSearch()
-                    onDismissRequest()
-                }
-            )
-            
-            Spacer(modifier = Modifier.height(NewsSpacing.md))
-            Text(
-                text = "Source Filter",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(NewsSpacing.sm))
-            
-            FadedHorizontalRow {
-                EnterprisePill(
-                    text = "All Sources",
-                    selected = selectedSource == null,
-                    onClick = { onSourceChange(null) }
-                )
-                availableSources.forEach { source ->
-                    EnterprisePill(
-                        text = source,
-                        selected = selectedSource == source,
-                        onClick = { onSourceChange(source) }
-                    )
-                }
+            Row(horizontalArrangement = Arrangement.spacedBy(NewsSpacing.xs)) {
+                SquareIconButton(Icons.Filled.Tune, "Filters", primary = false, onClick = onOpenFilters)
+                SquareIconButton(Icons.Filled.Refresh, "Refresh feed", primary = true, onClick = onRefresh)
             }
-
-            Spacer(modifier = Modifier.height(NewsSpacing.xl))
         }
-    }
-}
 
-@Composable
-fun HeaderActionButton(onRefresh: () -> Unit) {
-    val haptic = LocalHapticFeedback.current
-    IconButton(
-        onClick = {
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            onRefresh()
-        },
-        modifier = Modifier
-            .size(48.dp)
-            .semantics { contentDescription = "Refresh feed" },
-        colors = IconButtonDefaults.iconButtonColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-        )
-    ) {
-        Icon(imageVector = Icons.Filled.Refresh, contentDescription = null)
-    }
-}
+        Spacer(Modifier.height(NewsSpacing.md))
 
-@Composable
-fun SearchBlock(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onSearch: () -> Unit
-) {
-    val haptic = LocalHapticFeedback.current
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 52.dp),
-        singleLine = true,
-        placeholder = { Text("Search topic") },
-        trailingIcon = {
-            IconButton(
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onSearch()
-                },
-                modifier = Modifier
-                    .size(48.dp)
-                    .semantics { contentDescription = "Submit search" }
+        Surface(
+            onClick = onSearchClick,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = NewsSpacing.lg)
+                .height(48.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerLowest,
+            shape = RoundedCornerShape(NewsRadius.md),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        ) {
+            Row(
+                Modifier.fillMaxSize().padding(horizontal = NewsSpacing.md),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Search,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurface
+                Icon(Icons.Filled.Search, contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.width(NewsSpacing.sm))
+                Text(
+                    "Search topics, sources, keywords",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
+
+        Spacer(Modifier.height(NewsSpacing.md))
+
+        CategoryStrip(selectedCategoryId, categories, onCategoryClick)
+        Spacer(Modifier.height(NewsSpacing.sm))
+    }
+}
+
+@Composable
+private fun Wordmark() {
+    val text = buildAnnotatedString {
+        append("Pulse")
+        withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append("News") }
+    }
+    Text(
+        text,
+        style = MaterialTheme.typography.headlineLarge,
+        color = MaterialTheme.colorScheme.onBackground,
+        fontWeight = FontWeight.Medium,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
     )
 }
 
 @Composable
-private fun EnterprisePill(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit
+private fun SquareIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    primary: Boolean,
+    onClick: () -> Unit,
 ) {
     val haptic = LocalHapticFeedback.current
     Surface(
-        onClick = {
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            onClick()
-        },
-        shape = MaterialTheme.shapes.large,
-        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-        tonalElevation = if (selected) 1.dp else 0.dp,
-        shadowElevation = if (selected) 0.dp else 1.dp,
-        modifier = Modifier
-            .heightIn(min = 48.dp)
-            .clip(MaterialTheme.shapes.large)
-            .semantics { contentDescription = text }
+        onClick = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onClick() },
+        modifier = Modifier.size(40.dp).semantics { contentDescription = description },
+        shape = RoundedCornerShape(NewsRadius.md),
+        color = if (primary) MaterialTheme.colorScheme.primary else Color.Transparent,
+        border = if (primary) null else
+            androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
-        Box(
-            modifier = Modifier.padding(horizontal = NewsSpacing.lg, vertical = 12.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = text,
-                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null,
+                tint = if (primary) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(18.dp))
         }
     }
 }
 
 @Composable
-private fun FadedHorizontalRow(content: @Composable RowScope.() -> Unit) {
-    val scrollState = rememberScrollState()
-    var showStartFade by remember { mutableStateOf(false) }
-    var showEndFade by remember { mutableStateOf(true) }
-
-    LaunchedEffect(scrollState) {
-        snapshotFlow { scrollState.value to scrollState.maxValue }
-            .collect { (value, max) ->
-                showStartFade = value > 0
-                showEndFade = value < max
-            }
+private fun CategoryStrip(selectedId: Int, items: List<Pair<Int, String>>, onClick: (Int) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+            .padding(horizontal = NewsSpacing.lg),
+        horizontalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
+    ) {
+        items.forEach { (id, label) ->
+            CategoryChip(label, selectedId == id) { onClick(id) }
+        }
     }
+}
 
-    Box(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(scrollState)
-                .padding(start = NewsSpacing.xs, end = NewsSpacing.lg),
-            horizontalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
-            content = content
-        )
-
-        if (showStartFade) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .width(20.dp)
-                    .height(48.dp)
-                    .background(
-                        brush = Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.background, Color.Transparent))
-                    )
+@Composable
+fun CategoryChip(text: String, selected: Boolean, onClick: () -> Unit) {
+    val haptic = LocalHapticFeedback.current
+    Surface(
+        onClick = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onClick() },
+        shape = RoundedCornerShape(NewsRadius.pill),
+        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerLowest,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+        ),
+        modifier = Modifier.heightIn(min = 36.dp).semantics { contentDescription = text },
+    ) {
+        Box(Modifier.padding(horizontal = 14.dp, vertical = 9.dp), contentAlignment = Alignment.Center) {
+            Text(
+                text,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
             )
         }
+    }
+}
 
-        if (showEndFade) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .width(20.dp)
-                    .height(48.dp)
-                    .background(
-                        brush = Brush.horizontalGradient(listOf(Color.Transparent, MaterialTheme.colorScheme.background))
-                    )
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun FeedFilterBottomSheet(
+    query: String,
+    selectedSource: String?,
+    availableSources: List<String>,
+    onQueryChange: (String) -> Unit,
+    onSourceChange: (String?) -> Unit,
+    onSearch: () -> Unit,
+    onDismissRequest: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = NewsRadius.lg, topEnd = NewsRadius.lg),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = NewsSpacing.lg, vertical = NewsSpacing.md)) {
+            Text("SOURCE", style = MetaMono, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(NewsSpacing.sm))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
+                verticalArrangement = Arrangement.spacedBy(NewsSpacing.sm)) {
+                CategoryChip("All sources", selectedSource == null) { onSourceChange(null) }
+                availableSources.forEach { src ->
+                    CategoryChip(src, selectedSource == src) { onSourceChange(src) }
+                }
+            }
+
+            Spacer(Modifier.height(NewsSpacing.xl))
+            Text("KEYWORD", style = MetaMono, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(NewsSpacing.sm))
+            OutlinedTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                placeholder = { Text("e.g. \"semiconductors\"") },
+                shape = RoundedCornerShape(NewsRadius.md),
+                trailingIcon = {
+                    IconButton(onClick = { onSearch(); onDismissRequest() }) {
+                        Icon(Icons.Filled.Search, contentDescription = "Submit search")
+                    }
+                },
             )
+            Spacer(Modifier.height(NewsSpacing.xl))
         }
     }
 }
