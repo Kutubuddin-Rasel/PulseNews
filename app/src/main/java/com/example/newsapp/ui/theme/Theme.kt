@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import com.example.newsapp.domain.util.ThemePreference
 
 private val DarkColorScheme = darkColorScheme(
     primary             = PrimaryDark,
@@ -109,12 +110,18 @@ private val HighContrastLightColorScheme = lightColorScheme(
 
 @Composable
 fun NewsAppTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themePreference: ThemePreference = ThemePreference.SYSTEM,
     // Disabled by default to preserve the strict Editorial Design Foundation
     dynamicColor: Boolean = false,
     highContrast: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    val darkTheme = when (themePreference) {
+        ThemePreference.SYSTEM -> isSystemInDarkTheme()
+        ThemePreference.LIGHT -> false
+        ThemePreference.DARK -> true
+    }
+
     val colorScheme = when {
         highContrast && darkTheme -> HighContrastDarkColorScheme
         highContrast && !darkTheme -> HighContrastLightColorScheme

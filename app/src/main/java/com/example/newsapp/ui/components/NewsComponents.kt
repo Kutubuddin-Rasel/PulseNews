@@ -44,6 +44,10 @@ import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
+val LocalPulseSnackbar = compositionLocalOf<SnackbarHostState> {
+    error("No SnackbarHostState provided.")
+}
+
 enum class ArticleCardVariant { Standard, Featured, Compact }
 
 @Composable
