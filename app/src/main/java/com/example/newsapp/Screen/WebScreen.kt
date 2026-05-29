@@ -50,7 +50,7 @@ import com.example.newsapp.ViewModel.WebScreenViewModel
 import com.example.newsapp.domain.model.UiEvent
 import com.example.newsapp.ui.components.NewsBackground
 import com.example.newsapp.ui.components.ReaderErrorPanel
-import com.example.newsapp.ui.components.ReaderLoadingStrip
+import com.example.newsapp.ui.components.ReaderProgressStrip
 import com.example.newsapp.ui.components.ReaderTopBar
 import com.example.newsapp.ui.components.AudioPlaybackController
 import com.example.newsapp.ui.tokens.NewsSpacing
@@ -131,7 +131,7 @@ fun WebScreen(navController: NavController) {
                     exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
                 ) {
                     ReaderTopBar(
-                        title = article?.source?.name ?: "Reader",
+                        sourceLabel = article?.source?.name ?: "Reader",
                         isSaved = isSaved,
                         onBack = { navController.popBackStack() },
                         onToggleSave = viewModel::toggleSaved,
@@ -195,10 +195,10 @@ fun WebScreen(navController: NavController) {
             ) {
                 when (val state = readerState) {
                     is com.example.newsapp.ViewModel.ReaderState.Loading -> {
-                        ReaderLoadingStrip(isLoading = true)
+                        ReaderProgressStrip(progress = 0f, isLoading = true)
                     }
                     is com.example.newsapp.ViewModel.ReaderState.Error -> {
-                        ReaderLoadingStrip(isLoading = false)
+                        ReaderProgressStrip(progress = 0f, isLoading = false)
                         ReaderErrorPanel(
                             message = state.message,
                             onRetry = { /* Reload logic can be added if needed */ },
@@ -212,7 +212,7 @@ fun WebScreen(navController: NavController) {
                         )
                     }
                     is com.example.newsapp.ViewModel.ReaderState.Success -> {
-                        ReaderLoadingStrip(isLoading = false)
+                        ReaderProgressStrip(progress = 0f, isLoading = false)
                         LazyColumn(
                             state = listState,
                             modifier = Modifier

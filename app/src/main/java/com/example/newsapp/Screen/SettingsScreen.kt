@@ -1,158 +1,126 @@
 package com.example.newsapp.Screen
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.newsapp.ViewModel.SettingsViewModel
 import com.example.newsapp.ui.components.NewsBackground
-import com.example.newsapp.ui.components.enterpriseTopBarSpacing
-import com.example.newsapp.ui.tokens.NewsSpacing
+import com.example.newsapp.ui.theme.MetaMono
+import com.example.newsapp.ui.tokens.*
 
 @Composable
 fun SettingsScreen(
     onNavigateToNotifications: () -> Unit = {},
     onNavigateToAlgorithm: () -> Unit = {},
-    onNavigateToProfile: () -> Unit = {},
-    viewModel: SettingsViewModel = hiltViewModel()
+    viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val highContrastEnabled by viewModel.highContrastEnabled.collectAsState()
 
-    NewsBackground(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .enterpriseTopBarSpacing()
-                .padding(NewsSpacing.lg),
-            verticalArrangement = Arrangement.spacedBy(NewsSpacing.md)
+    NewsBackground(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().statusBarsPadding()
+            .padding(horizontal = NewsSpacing.lg)
+            .padding(top = NewsSpacing.lg, bottom = NewsSpacing.xxl)
         ) {
-            Text(
-                text = "Settings",
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onBackground
+            Text("Settings", style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onBackground)
+            Spacer(Modifier.height(NewsSpacing.xs))
+            Text("VERSION 2.4.1", style = MetaMono,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+            Spacer(Modifier.height(NewsSpacing.xl))
+            GroupLabel("PREFERENCES")
+            SettingRow(Icons.Filled.Notifications, "Notification Preferences",
+                "Manage alerts, topics, and quiet hours", onClick = onNavigateToNotifications)
+            Spacer(Modifier.height(NewsSpacing.xs))
+            SettingRow(Icons.Filled.Tune, "Feed Algorithm",
+                "Customize topic weights and burst filter bubbles", onClick = onNavigateToAlgorithm)
+
+            Spacer(Modifier.height(NewsSpacing.md))
+            GroupLabel("ACCESSIBILITY")
+            SettingRow(
+                icon = Icons.Filled.Visibility,
+                title = "High-Contrast Mode",
+                subtitle = "Maximizes text legibility (WCAG AAA)",
+                trailing = {
+                    Switch(checked = highContrastEnabled, onCheckedChange = viewModel::toggleHighContrast)
+                },
+                onClick = { viewModel.toggleHighContrast(!highContrastEnabled) },
             )
 
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onNavigateToProfile() },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Column(modifier = Modifier.padding(NewsSpacing.lg)) {
-                    Text(
-                        text = "Account & Sync",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "Sign in and sync your saved articles across devices.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+            Spacer(Modifier.height(NewsSpacing.md))
+            GroupLabel("ABOUT")
+            SettingRow(Icons.Filled.CloudDone, "App status",
+                "Offline cache and resilient networking are enabled")
+            Spacer(Modifier.height(NewsSpacing.xs))
+            SettingRow(Icons.Filled.Description, "Licenses",
+                "Open-source dependencies", onClick = {})
+        }
+    }
+}
 
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onNavigateToNotifications() },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Column(modifier = Modifier.padding(NewsSpacing.lg)) {
-                    Text(
-                        text = "Notification Preferences",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "Manage alerts, topics, and quiet hours.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+@Composable
+private fun GroupLabel(text: String) {
+    Text(
+        text, style = MetaMono,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = NewsSpacing.sm, vertical = NewsSpacing.sm),
+    )
+}
 
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onNavigateToAlgorithm() },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+@Composable
+private fun SettingRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    trailing: @Composable (() -> Unit)? = null,
+    onClick: (() -> Unit)? = null,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth()
+            .let { if (onClick != null) it.clickable(onClick = onClick) else it },
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        shape = RoundedCornerShape(NewsRadius.md),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Row(
+            Modifier.padding(horizontal = NewsSpacing.md, vertical = NewsSpacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(NewsSpacing.md),
+        ) {
+            Box(
+                Modifier.size(32.dp).clip(RoundedCornerShape(NewsRadius.sm))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                contentAlignment = Alignment.Center,
             ) {
-                Column(modifier = Modifier.padding(NewsSpacing.lg)) {
-                    Text(
-                        text = "Feed Algorithm Engine",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "Customize topic weights and burst filter bubbles.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Icon(icon, contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp))
             }
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(NewsSpacing.lg),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "High-Contrast Mode",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Maximizes text legibility (WCAG AAA).",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = highContrastEnabled,
-                        onCheckedChange = { viewModel.toggleHighContrast(it) }
-                    )
-                }
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Column(modifier = Modifier.padding(NewsSpacing.lg)) {
-                    Text(
-                        text = "App status",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "Offline cache and resilient networking are enabled.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+            if (trailing != null) trailing()
+            else if (onClick != null) Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .5f),
+            )
         }
     }
 }
