@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.example.newsapp.domain.repository.SavedArticleRepository
 
 enum class FeedMode { FOR_YOU, TRENDING }
 
@@ -44,6 +45,7 @@ data class HomeUiState(
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val newsRepository: NewsRepository,
+    private val savedArticleRepository: SavedArticleRepository,
     private val algoPrefsRepo: AlgorithmPreferencesRepository,
     private val privacyPrefsRepo: PrivacyPreferencesRepository,
     private val localEngagementTracker: com.example.newsapp.data.util.LocalEngagementTracker,
@@ -177,6 +179,13 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             localEngagementTracker.incrementClick(currentCategory)
             appTelemetry.logInteraction(articleId, "article_clicked")
+        }
+    }
+
+    fun saveArticle(article: Article) {
+        viewModelScope.launch {
+            savedArticleRepository.saveArticle(article)
+            _events.emit("Article saved")
         }
     }
 

@@ -10,9 +10,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
+import com.example.newsapp.data.util.AuthManager
+import kotlinx.coroutines.launch
+
 @HiltViewModel
 class PulseProfileViewModel @Inject constructor(
-    engagementTracker: EngagementTracker
+    engagementTracker: EngagementTracker,
+    private val authManager: AuthManager
 ) : ViewModel() {
 
     val profile: StateFlow<GamificationProfile> = engagementTracker.profile.stateIn(
@@ -20,4 +24,16 @@ class PulseProfileViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = GamificationProfile()
     )
+    
+    val currentUser = authManager.currentUser
+
+    fun signIn() {
+        viewModelScope.launch {
+            authManager.signInWithGoogle()
+        }
+    }
+
+    fun signOut() {
+        authManager.signOut()
+    }
 }

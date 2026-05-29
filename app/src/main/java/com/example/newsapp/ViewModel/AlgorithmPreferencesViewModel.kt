@@ -10,6 +10,12 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import android.content.Context
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import com.example.newsapp.worker.ScoreRecalculationWorker
+import dagger.hilt.android.qualifiers.ApplicationContext
+
 data class AlgorithmWeightsUiState(
     val tech: Float = 0.2f,
     val politics: Float = 0.2f,
@@ -18,9 +24,11 @@ data class AlgorithmWeightsUiState(
     val health: Float = 0.2f
 )
 
+
 @HiltViewModel
 class AlgorithmPreferencesViewModel @Inject constructor(
-    private val repository: AlgorithmPreferencesRepository
+    private val repository: AlgorithmPreferencesRepository,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AlgorithmWeightsUiState())
@@ -53,5 +61,10 @@ class AlgorithmPreferencesViewModel @Inject constructor(
         viewModelScope.launch {
             repository.updatePreferences(normTech, normPolitics, normGlobal, normBusiness, normHealth)
         }
+    }
+
+    fun saveAndRecalculate() {
+        val workRequest = OneTimeWorkRequestBuilder<ScoreRecalculationWorker>().build()
+        WorkManager.getInstance(context).enqueue(workRequest)
     }
 }

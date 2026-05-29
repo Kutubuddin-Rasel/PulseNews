@@ -26,6 +26,13 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+sealed class AiState {
+    object Idle : AiState()
+    object Loading : AiState()
+    data class Success(val summary: String) : AiState()
+    data class Error(val message: String) : AiState()
+}
+
 @HiltViewModel
 class ArticleDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -33,6 +40,9 @@ class ArticleDetailViewModel @Inject constructor(
     private val savedArticleRepository: SavedArticleRepository,
     private val appTelemetry: AppTelemetry
 ) : ViewModel() {
+
+    private val _aiState = MutableStateFlow<AiState>(AiState.Idle)
+    val aiState: StateFlow<AiState> = _aiState
 
     private val encodedUrl: String = savedStateHandle.get<String>("url").orEmpty()
     val decodedUrl: String = decodeNavUrl(encodedUrl)
