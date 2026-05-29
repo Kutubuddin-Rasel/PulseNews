@@ -1,134 +1,148 @@
 package com.example.newsapp.ui.components
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.outlined.BookmarkBorder
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import com.example.newsapp.ui.tokens.NewsSpacing
+import androidx.compose.ui.unit.dp
+import com.example.newsapp.ui.theme.AccentGradient
+import com.example.newsapp.ui.theme.MetaMono
+import com.example.newsapp.ui.tokens.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReaderTopBar(
-    title: String,
+    sourceLabel: String,
     isSaved: Boolean,
     onBack: () -> Unit,
     onToggleSave: () -> Unit,
     onShare: () -> Unit,
-    onOpenExternal: () -> Unit
+    onOpenExternal: () -> Unit,
 ) {
-    CenterAlignedTopAppBar(
-        title = {
-            Text(
-                text = title,
-                maxLines = 1,
-                style = MaterialTheme.typography.titleMedium
-            )
-        },
-        navigationIcon = {
-            ReaderActionButton(
-                contentDescription = "Go back",
-                onClick = onBack
-            ) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
-            }
-        },
-        actions = {
-            ReaderActionButton(
-                contentDescription = if (isSaved) "Remove from saved" else "Save article",
-                onClick = onToggleSave
-            ) {
-                Icon(
-                    imageVector = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                    contentDescription = null
+    Column {
+        TopAppBar(
+            title = {
+                Text(
+                    sourceLabel.uppercase(),
+                    style = MetaMono,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            }
-            ReaderActionButton(contentDescription = "Share article", onClick = onShare) {
-                Icon(Icons.Filled.Share, contentDescription = null)
-            }
-            ReaderActionButton(contentDescription = "Open in browser", onClick = onOpenExternal) {
-                Icon(Icons.Filled.OpenInBrowser, contentDescription = null)
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            titleContentColor = MaterialTheme.colorScheme.onSurface,
-            navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
-            actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            navigationIcon = {
+                ReaderActionButton("Go back", onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                }
+            },
+            actions = {
+                ReaderActionButton(if (isSaved) "Remove from saved" else "Save article", onToggleSave) {
+                    Icon(
+                        imageVector = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                        contentDescription = null,
+                        tint = if (isSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                ReaderActionButton("Share article", onShare) { Icon(Icons.Filled.IosShare, contentDescription = null) }
+                ReaderActionButton("Open in browser", onOpenExternal) { Icon(Icons.Filled.OpenInBrowser, contentDescription = null) }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                titleContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ),
         )
-    )
+    }
 }
 
 @Composable
 fun ReaderActionButton(
-    contentDescription: String,
+    description: String,
     onClick: () -> Unit,
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
     IconButton(
         onClick = onClick,
-        modifier = Modifier.semantics { this.contentDescription = contentDescription },
-        content = content
+        modifier = Modifier.semantics { contentDescription = description },
+        content = content,
     )
 }
 
+// Aurora-tinted reading progress strip (0f..1f)
 @Composable
-fun ReaderLoadingStrip(isLoading: Boolean) {
-    if (!isLoading) return
-    LinearProgressIndicator(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.primary,
-        trackColor = MaterialTheme.colorScheme.surfaceVariant
-    )
+fun ReaderProgressStrip(progress: Float, isLoading: Boolean = false) {
+    if (isLoading) {
+        val infinite = rememberInfiniteTransition("reader-load")
+        val x by infinite.animateFloat(
+            initialValue = -1f, targetValue = 2f,
+            animationSpec = infiniteRepeatable(tween(1400, easing = LinearEasing)),
+            label = "x",
+        )
+        Box(
+            Modifier.fillMaxWidth().height(2.dp)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+        ) {
+            Box(
+                Modifier.fillMaxWidth(0.3f).fillMaxHeight()
+                    .background(AccentGradient)
+            )
+        }
+    } else {
+        val animatedProgress by animateFloatAsState(
+            targetValue = progress.coerceIn(0f, 1f),
+            animationSpec = spring(stiffness = Spring.StiffnessLow),
+            label = "reading_progress"
+        )
+        Box(Modifier.fillMaxWidth().height(2.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
+            Box(
+                Modifier.fillMaxWidth(animatedProgress).fillMaxHeight()
+                    .background(AccentGradient)
+            )
+        }
+    }
 }
 
 @Composable
 fun ReaderErrorPanel(
     message: String,
     onRetry: () -> Unit,
-    onOpenExternal: () -> Unit
+    onOpenExternal: () -> Unit,
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(NewsSpacing.lg),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(NewsSpacing.lg),
+        color = MaterialTheme.colorScheme.errorContainer,
+        shape = RoundedCornerShape(NewsRadius.card),
     ) {
         Column(
-            modifier = Modifier.padding(NewsSpacing.lg),
-            verticalArrangement = Arrangement.spacedBy(NewsSpacing.sm)
+            Modifier.padding(NewsSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
         ) {
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onErrorContainer
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(NewsSpacing.sm)) {
+                Box(Modifier.size(8.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(MaterialTheme.colorScheme.error))
+                Text("Article failed to load", style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer)
+            }
+            Text(message, style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer)
             Row(horizontalArrangement = Arrangement.spacedBy(NewsSpacing.sm)) {
-                androidx.compose.material3.Button(onClick = onRetry) {
+                Button(onClick = onRetry, shape = RoundedCornerShape(NewsRadius.pill)) {
                     Text("Retry")
                 }
-                androidx.compose.material3.OutlinedButton(onClick = onOpenExternal) {
+                OutlinedButton(onClick = onOpenExternal, shape = RoundedCornerShape(NewsRadius.pill)) {
                     Text("Open in browser")
                 }
             }
