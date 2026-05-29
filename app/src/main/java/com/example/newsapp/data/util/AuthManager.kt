@@ -32,22 +32,22 @@ class AuthManager @Inject constructor(
         }
     }
 
-    suspend fun signInWithGoogle(): Result<FirebaseUser> {
+    suspend fun signInWithGoogle(activityContext: Context): Result<FirebaseUser> {
         return try {
-            val credentialManager = CredentialManager.create(context)
+            val credentialManager = CredentialManager.create(activityContext)
             
             // Note: The Web Client ID should be set in your local.properties as WEB_CLIENT_ID=...
             val googleIdOption = GetGoogleIdOption.Builder()
                 .setFilterByAuthorizedAccounts(false)
                 .setServerClientId(com.example.newsapp.BuildConfig.WEB_CLIENT_ID)
-                .setAutoSelectEnabled(true)
+                .setAutoSelectEnabled(false)
                 .build()
 
             val request = GetCredentialRequest.Builder()
                 .addCredentialOption(googleIdOption)
                 .build()
 
-            val result = credentialManager.getCredential(context, request)
+            val result = credentialManager.getCredential(activityContext, request)
             val credential = result.credential
 
             if (credential is GoogleIdTokenCredential) {

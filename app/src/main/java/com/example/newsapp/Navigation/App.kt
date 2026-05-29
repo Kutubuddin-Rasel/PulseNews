@@ -10,8 +10,13 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -30,6 +35,9 @@ import com.example.newsapp.Screen.PulseProfileScreen
 import com.example.newsapp.Screen.SavedArticle
 import com.example.newsapp.Screen.SettingsScreen
 import com.example.newsapp.Screen.WebScreen
+import com.example.newsapp.ui.components.LocalPulseSnackbar
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.example.newsapp.ui.tokens.NewsRadius
 
 @Composable
 fun App() {
@@ -45,35 +53,49 @@ fun App() {
     val currentRoute = currentBackStackEntry?.destination?.route
     val showBottomBar = currentRoute in setOf(Routes.home, Routes.saved, Routes.profile, Routes.settings)
 
-    Scaffold(
-        bottomBar = {
-            if (showBottomBar) {
-                NavigationBar(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant) {
-                    navItems.forEach { item ->
-                        NavigationBarItem(
-                            selected = currentRoute == item.route,
-                            onClick = {
-                                navController.navigate(item.route) {
-                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = { androidx.compose.material3.Icon(item.icon, contentDescription = item.screenName) },
-                            label = { Text(item.screenName) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = androidx.compose.material3.MaterialTheme.colorScheme.onSecondaryContainer,
-                                unselectedIconColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-                                selectedTextColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
-                                unselectedTextColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-                                indicatorColor = androidx.compose.material3.MaterialTheme.colorScheme.secondaryContainer
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    CompositionLocalProvider(LocalPulseSnackbar provides snackbarHostState) {
+        Scaffold(
+            snackbarHost = {
+                SnackbarHost(snackbarHostState) { data ->
+                    Snackbar(
+                        snackbarData = data,
+                        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.inverseSurface,
+                        contentColor = androidx.compose.material3.MaterialTheme.colorScheme.inverseOnSurface,
+                        shape = RoundedCornerShape(NewsRadius.md),
+                        actionColor = androidx.compose.material3.MaterialTheme.colorScheme.primary
+                    )
+                }
+            },
+            bottomBar = {
+                if (showBottomBar) {
+                    NavigationBar(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant) {
+                        navItems.forEach { item ->
+                            NavigationBarItem(
+                                selected = currentRoute == item.route,
+                                onClick = {
+                                    navController.navigate(item.route) {
+                                        popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                },
+                                icon = { androidx.compose.material3.Icon(item.icon, contentDescription = item.screenName) },
+                                label = { Text(item.screenName) },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = androidx.compose.material3.MaterialTheme.colorScheme.onSecondaryContainer,
+                                    unselectedIconColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                                    selectedTextColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
+                                    unselectedTextColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                                    indicatorColor = androidx.compose.material3.MaterialTheme.colorScheme.secondaryContainer
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }
-        }
-    ) { paddingValues ->
+        ) { paddingValues ->
         NavHost(
             navController = navController,
             startDestination = Routes.home,
@@ -115,4 +137,5 @@ fun App() {
             }
         }
     }
+}
 }
