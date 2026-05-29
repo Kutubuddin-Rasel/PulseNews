@@ -10,7 +10,6 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.Toast
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,6 +38,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -53,6 +53,7 @@ import com.example.newsapp.ui.components.ReaderErrorPanel
 import com.example.newsapp.ui.components.ReaderProgressStrip
 import com.example.newsapp.ui.components.ReaderTopBar
 import com.example.newsapp.ui.components.AudioPlaybackController
+import com.example.newsapp.ui.components.LocalPulseSnackbar
 import com.example.newsapp.ui.tokens.NewsSpacing
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
@@ -62,11 +63,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.launch
 
 @Composable
 fun WebScreen(navController: NavController) {
     val viewModel: WebScreenViewModel = hiltViewModel()
     val context = LocalContext.current
+    val snackbar = LocalPulseSnackbar.current
+    val scope = rememberCoroutineScope()
     val article by viewModel.article.collectAsState()
     val isSaved by viewModel.isSaved.collectAsState()
     val readerState by viewModel.readerState.collectAsState()
@@ -82,7 +86,7 @@ fun WebScreen(navController: NavController) {
                 is UiEvent.NetworkError -> event.message
                 is UiEvent.Generic -> event.message
             }
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            snackbar.showSnackbar(message)
         }
     }
 
@@ -136,21 +140,21 @@ fun WebScreen(navController: NavController) {
                         onBack = { navController.popBackStack() },
                         onToggleSave = viewModel::toggleSaved,
                         onShare = {
-                            runCatching {
+                            try {
                                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                     type = "text/plain"
                                     putExtra(Intent.EXTRA_TEXT, safeUrl)
                                 }
                                 context.startActivity(Intent.createChooser(shareIntent, "Share article"))
-                            }.onFailure {
-                                Toast.makeText(context, "Unable to share", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                scope.launch { snackbar.showSnackbar("Unable to share") }
                             }
                         },
                         onOpenExternal = {
-                            runCatching {
+                            try {
                                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(safeUrl)))
-                            }.onFailure {
-                                Toast.makeText(context, "Unable to open browser", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                scope.launch { snackbar.showSnackbar("Unable to open browser") }
                             }
                         }
                     )
@@ -203,10 +207,10 @@ fun WebScreen(navController: NavController) {
                             message = state.message,
                             onRetry = { /* Reload logic can be added if needed */ },
                             onOpenExternal = {
-                                runCatching {
+                                try {
                                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(safeUrl)))
-                                }.onFailure {
-                                    Toast.makeText(context, "Unable to open browser", Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) {
+                                    scope.launch { snackbar.showSnackbar("Unable to open browser") }
                                 }
                             }
                         )

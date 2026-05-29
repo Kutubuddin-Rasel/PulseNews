@@ -8,6 +8,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.*
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -20,6 +22,7 @@ import com.example.newsapp.ViewModel.SettingsViewModel
 import com.example.newsapp.ui.components.NewsBackground
 import com.example.newsapp.ui.theme.MetaMono
 import com.example.newsapp.ui.tokens.*
+import com.example.newsapp.domain.util.ThemePreference
 
 @Composable
 fun SettingsScreen(
@@ -28,6 +31,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val highContrastEnabled by viewModel.highContrastEnabled.collectAsState()
+    val themePreference by viewModel.themePreference.collectAsState()
 
     NewsBackground(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().statusBarsPadding()
@@ -47,6 +51,62 @@ fun SettingsScreen(
             Spacer(Modifier.height(NewsSpacing.xs))
             SettingRow(Icons.Filled.Tune, "Feed Algorithm",
                 "Customize topic weights and burst filter bubbles", onClick = onNavigateToAlgorithm)
+
+            Spacer(Modifier.height(NewsSpacing.md))
+            GroupLabel("APPEARANCE")
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                shape = RoundedCornerShape(NewsRadius.md),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            ) {
+                Column(Modifier.padding(NewsSpacing.md)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(NewsSpacing.md),
+                    ) {
+                        Box(
+                            Modifier.size(32.dp).clip(RoundedCornerShape(NewsRadius.sm))
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(Icons.Filled.Palette, contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp))
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text("App Theme", style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                            Text("Choose your preferred color mode", style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    Spacer(Modifier.height(NewsSpacing.md))
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        SegmentedButton(
+                            selected = themePreference == ThemePreference.SYSTEM,
+                            onClick = { viewModel.setThemePreference(ThemePreference.SYSTEM) },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3)
+                        ) {
+                            Text("System", style = MaterialTheme.typography.labelSmall)
+                        }
+                        SegmentedButton(
+                            selected = themePreference == ThemePreference.LIGHT,
+                            onClick = { viewModel.setThemePreference(ThemePreference.LIGHT) },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3)
+                        ) {
+                            Text("Light", style = MaterialTheme.typography.labelSmall)
+                        }
+                        SegmentedButton(
+                            selected = themePreference == ThemePreference.DARK,
+                            onClick = { viewModel.setThemePreference(ThemePreference.DARK) },
+                            shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3)
+                        ) {
+                            Text("Dark", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
 
             Spacer(Modifier.height(NewsSpacing.md))
             GroupLabel("ACCESSIBILITY")
