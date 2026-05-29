@@ -1,252 +1,152 @@
 package com.example.newsapp.Screen
 
 import android.widget.Toast
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.animation.*
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.MaterialTheme
-import androidx.paging.compose.collectAsLazyPagingItems
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.example.newsapp.ViewModel.FeedMode
+import androidx.paging.compose.collectAsLazyPagingItems
 import com.example.newsapp.ViewModel.HomeViewModel
-import com.example.newsapp.domain.model.UiState
 import com.example.newsapp.navigateToArticleDetail
-import com.example.newsapp.ui.components.ArticleCard
-import com.example.newsapp.ui.components.EmptyState
-import com.example.newsapp.ui.components.ErrorState
-import com.example.newsapp.ui.components.FeedSkeleton
-import com.example.newsapp.ui.components.HomeHeader
-import com.example.newsapp.ui.components.NewsBackground
-import com.example.newsapp.ui.components.PagingFooter
-import com.example.newsapp.ui.components.StateBanner
+import com.example.newsapp.ui.components.*
 import com.example.newsapp.ui.tokens.NewsSpacing
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 
-private val categories = listOf(
-    "business",
-    "entertainment",
-    "general",
-    "health",
-    "science",
-    "sports",
-    "technology"
+private val CATEGORIES = listOf(
+    1 to "For You", 2 to "Technology", 3 to "Business",
+    4 to "Politics", 5 to "Sports", 6 to "Entertainment", 7 to "Health",
 )
-
-private val sortOptions = listOf("relevancy", "popularity", "publishedAt")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(navController: NavController) {
-    val viewModel: HomeViewModel = hiltViewModel()
-    val uiState by viewModel.uiState.collectAsState()
+    val vm: HomeViewModel = hiltViewModel()
+    val uiState by vm.uiState.collectAsState()
     val listState = rememberLazyListState()
-    val keyboardController = LocalSoftwareKeyboardController.current
     val context = LocalContext.current
-
+    val haptic = LocalHapticFeedback.current
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     var showFilterSheet by remember { mutableStateOf(false) }
 
-    val telemetryConsent by viewModel.telemetryConsent.collectAsState()
-    val haptic = LocalHapticFeedback.current
-
-    var isHeaderVisible by remember { mutableStateOf(true) }
-    LaunchedEffect(listState) {
-        var previousIndex = 0
-        var previousScrollOffset = 0
-        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
-            .collect { (index, offset) ->
-                if (index > previousIndex || (index == previousIndex && offset > previousScrollOffset + 10)) {
-                    if (index > 0) isHeaderVisible = false
-                } else if (index < previousIndex || (index == previousIndex && offset < previousScrollOffset - 10)) {
-                    isHeaderVisible = true
-                }
-                previousIndex = index
-                previousScrollOffset = offset
-            }
-    }
-
-    val articles = viewModel.feed.collectAsLazyPagingItems()
+    val telemetryConsent by vm.telemetryConsent.collectAsState()
+    val articles = vm.feed.collectAsLazyPagingItems()
     val loadState = articles.loadState
-    val isCurrentlyRefreshing = loadState.refresh is androidx.paging.LoadState.Loading
+    val isRefreshing = loadState.refresh is androidx.paging.LoadState.Loading
 
-    LaunchedEffect(isCurrentlyRefreshing) {
-        if (isCurrentlyRefreshing) {
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-        }
+    LaunchedEffect(isRefreshing) {
+        if (isRefreshing) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
     }
-
-    LaunchedEffect(viewModel) {
-        viewModel.events.collect { message ->
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-        }
+    LaunchedEffect(vm) {
+        vm.events.collect { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
     }
 
     if (telemetryConsent == null) {
-        PrivacyConsentDialog(
-            onAccept = { viewModel.setTelemetryConsent(true) },
-            onDecline = { viewModel.setTelemetryConsent(false) }
-        )
+        PrivacyConsentDialog(onAccept = { vm.setTelemetryConsent(true) }, onDecline = { vm.setTelemetryConsent(false) })
     }
 
-    NewsBackground(modifier = Modifier.fillMaxSize()) {
+    val canRefresh = uiState.filter.categoryId == 1 &&
+        uiState.filter.activeQuery.isEmpty() && uiState.filter.selectedSource == null
+
+    NewsBackground(Modifier.fillMaxSize()) {
         Scaffold(
             modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
             topBar = {
-                AnimatedVisibility(
-                    visible = isHeaderVisible,
-                    enter = expandVertically() + fadeIn(),
-                    exit = shrinkVertically() + fadeOut()
-                ) {
-                    HomeHeader(
-                        onRefresh = { 
-                            // Only allow network refresh if we are on "For You" with no filters
-                            if (uiState.filter.categoryId == 1 && uiState.filter.activeQuery.isEmpty() && uiState.filter.selectedSource == null) {
-                                articles.refresh()
-                            } else {
-                                Toast.makeText(context, "Refresh only available in 'For You' mode.", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        scrollBehavior = scrollBehavior
-                    )
-                }
+                HomeHeader(
+                    selectedCategoryId = uiState.filter.categoryId,
+                    categories = CATEGORIES,
+                    onCategoryClick = vm::setCategory,
+                    onSearchClick = { showFilterSheet = true },
+                    onRefresh = {
+                        if (canRefresh) articles.refresh()
+                        else Toast.makeText(context, "Refresh only in ‘For You’", Toast.LENGTH_SHORT).show()
+                    },
+                    onOpenFilters = { showFilterSheet = true },
+                )
             },
-            floatingActionButton = {
-                AnimatedVisibility(
-                    visible = isHeaderVisible,
-                    enter = fadeIn(),
-                    exit = fadeOut()
-                ) {
-                    FloatingActionButton(
-                        onClick = { showFilterSheet = true },
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    ) {
-                        Icon(imageVector = Icons.Filled.Search, contentDescription = "Filter and Search")
-                    }
-                }
-            },
-            containerColor = Color.Transparent
-        ) { paddingValues ->
+            containerColor = Color.Transparent,
+        ) { padding ->
             PullToRefreshBox(
-                isRefreshing = isCurrentlyRefreshing,
-                onRefresh = { 
-                    if (uiState.filter.categoryId == 1 && uiState.filter.activeQuery.isEmpty() && uiState.filter.selectedSource == null) {
-                        articles.refresh()
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
+                isRefreshing = isRefreshing,
+                onRefresh = { if (canRefresh) articles.refresh() },
+                modifier = Modifier.fillMaxSize().padding(padding),
             ) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    
-                    if (loadState.refresh is androidx.paging.LoadState.Loading) {
-                        FeedSkeleton()
-                    } else if (loadState.refresh is androidx.paging.LoadState.Error) {
-                        val error = loadState.refresh as androidx.paging.LoadState.Error
+                when {
+                    loadState.refresh is androidx.paging.LoadState.Loading -> FeedSkeleton()
+                    loadState.refresh is androidx.paging.LoadState.Error -> {
+                        val err = loadState.refresh as androidx.paging.LoadState.Error
                         ErrorState(
-                            message = error.error.localizedMessage ?: "Unknown error",
-                            retryable = true,
-                            onRetry = { articles.retry() }
+                            title = "We lost the signal.",
+                            body = err.error.localizedMessage ?: "PulseNews can’t reach the network right now.",
+                            retryable = true, onRetry = articles::retry,
                         )
-                    } else if (articles.itemCount == 0) {
-                        EmptyState(
-                            message = "No articles found.",
-                            actionText = "Clear Filters",
-                            onAction = {
-                                viewModel.setCategory(1)
-                                viewModel.setSource(null)
-                                viewModel.updateQueryInput("")
-                                viewModel.submitSearch()
-                            }
-                        )
-                    } else {
-                        LazyColumn(
-                            state = listState,
-                            contentPadding = PaddingValues(vertical = NewsSpacing.sm),
-                            verticalArrangement = Arrangement.spacedBy(NewsSpacing.sm)
-                        ) {
-                            items(
-                                count = articles.itemCount,
-                                key = { index -> articles.peek(index)?.backendId?.takeIf { it.isNotBlank() } ?: articles.peek(index)?.url ?: index }
-                            ) { index ->
-                                val article = articles[index]
-                                if (article != null) {
-                                    ArticleCard(
-                                        article = article,
-                                        onClick = { 
-                                            viewModel.trackArticleClick(article.backendId)
-                                            navController.navigateToArticleDetail(article.url ?: "") 
+                    }
+                    articles.itemCount == 0 -> EmptyState(
+                        title = "Nothing here yet.",
+                        body = "Try clearing your filters or switching back to For You.",
+                        actionText = "Reset filters",
+                        onAction = {
+                            vm.setCategory(1); vm.setSource(null)
+                            vm.updateQueryInput(""); vm.submitSearch()
+                        },
+                    )
+                    else -> LazyColumn(
+                        state = listState,
+                        contentPadding = PaddingValues(vertical = NewsSpacing.sm),
+                        verticalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
+                    ) {
+                        items(
+                            count = articles.itemCount,
+                            key = { i -> articles.peek(i)?.url ?: i },
+                        ) { i ->
+                            articles[i]?.let { article ->
+                                val variant = when {
+                                    i == 0 -> ArticleCardVariant.Featured
+                                    else -> ArticleCardVariant.Standard
+                                }
+                                ArticleCard(
+                                    article = article,
+                                    variant = variant,
+                                    onClick = {
+                                        vm.trackArticleClick(article.url ?: "")
+                                        navController.navigateToArticleDetail(article.url ?: "")
+                                    },
+                                    onSave = { vm.saveArticle(article) },
+                                    onShare = {
+                                        val sendIntent = android.content.Intent().apply {
+                                            action = android.content.Intent.ACTION_SEND
+                                            putExtra(android.content.Intent.EXTRA_TEXT, article.url ?: "")
+                                            type = "text/plain"
                                         }
-                                    )
-                                }
-                            }
-                            item {
-                                PagingFooter(isVisible = loadState.append is androidx.paging.LoadState.Loading)
-                            }
-                            if (loadState.append is androidx.paging.LoadState.Error) {
-                                item {
-                                    ErrorState(
-                                        message = "Error loading more",
-                                        retryable = true,
-                                        onRetry = { articles.retry() }
-                                    )
-                                }
+                                        context.startActivity(android.content.Intent.createChooser(sendIntent, null))
+                                    },
+                                )
                             }
                         }
+                        item { PagingFooter(isVisible = loadState.append is androidx.paging.LoadState.Loading) }
                     }
                 }
             }
 
             if (showFilterSheet) {
-                val availableSources by viewModel.availableSources.collectAsState()
-                val trendingTopics by viewModel.trendingTopics.collectAsState()
-                com.example.newsapp.ui.components.FeedFilterBottomSheet(
-                    categoryId = uiState.filter.categoryId,
+                val sources by vm.availableSources.collectAsState()
+                FeedFilterBottomSheet(
                     query = uiState.filter.queryInput,
                     selectedSource = uiState.filter.selectedSource,
-                    availableSources = availableSources,
-                    trendingTopics = trendingTopics,
-                    onCategoryChange = viewModel::setCategory,
-                    onQueryChange = viewModel::updateQueryInput,
-                    onSourceChange = viewModel::setSource,
-                    onSearch = viewModel::submitSearch,
-                    onDismissRequest = { showFilterSheet = false }
+                    availableSources = sources,
+                    onQueryChange = vm::updateQueryInput,
+                    onSourceChange = vm::setSource,
+                    onSearch = vm::submitSearch,
+                    onDismissRequest = { showFilterSheet = false },
                 )
             }
         }
