@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -21,6 +22,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.newsapp.ViewModel.PulseProfileViewModel
+import com.example.newsapp.domain.model.UiEvent
+import com.example.newsapp.ui.components.LocalPulseSnackbar
 import com.example.newsapp.ui.components.NewsBackground
 import com.example.newsapp.ui.theme.AccentGradient
 import com.example.newsapp.ui.theme.MetaMono
@@ -29,9 +32,21 @@ import com.example.newsapp.ui.tokens.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PulseProfileScreen(viewModel: PulseProfileViewModel = hiltViewModel()) {
+    val context = LocalContext.current
+    val snackbar = LocalPulseSnackbar.current
     val p by viewModel.profile.collectAsState()
     val user by viewModel.currentUser.collectAsState()
     val badges = remember(p) { allBadges(p.totalArticlesRead, p.categoryReadCounts) }
+
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { event ->
+            val msg = when (event) {
+                is UiEvent.AlreadySaved, is UiEvent.Saved, is UiEvent.DeleteFailed,
+                is UiEvent.NetworkError, is UiEvent.Generic -> event.message
+            }
+            snackbar.showSnackbar(msg)
+        }
+    }
 
     NewsBackground(Modifier.fillMaxSize()) {
         Scaffold(containerColor = Color.Transparent) { padding ->
@@ -52,7 +67,7 @@ fun PulseProfileScreen(viewModel: PulseProfileViewModel = hiltViewModel()) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(NewsSpacing.lg))
                         
-                        AuthCard(user, onSignIn = viewModel::signIn, onSignOut = viewModel::signOut)
+                        AuthCard(user, onSignIn = { viewModel.signIn(context) }, onSignOut = viewModel::signOut)
                         
                         Spacer(Modifier.height(NewsSpacing.lg))
                         StreakCard(current = p.currentStreak, longest = p.longestStreak)

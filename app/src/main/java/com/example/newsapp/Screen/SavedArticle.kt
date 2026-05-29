@@ -1,6 +1,5 @@
 package com.example.newsapp.Screen
 
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,10 +30,13 @@ fun SavedArticle(navController: NavController) {
     val uiState by vm.state.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
+    val snackbar = com.example.newsapp.ui.components.LocalPulseSnackbar.current
+    val scope = rememberCoroutineScope()
+
     LaunchedEffect(vm) {
         vm.events.collect { event ->
             when (event) {
-                is SavedUiEvent.Message -> Toast.makeText(navController.context, event.value, Toast.LENGTH_SHORT).show()
+                is SavedUiEvent.Message -> snackbar.showSnackbar(event.value)
                 is SavedUiEvent.UndoDelete -> {
                     val r = snackbarHostState.showSnackbar("Removed from saved", "Undo", duration = SnackbarDuration.Short)
                     if (r == SnackbarResult.ActionPerformed) vm.undoDelete(event.article)
