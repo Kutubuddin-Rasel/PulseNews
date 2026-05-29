@@ -26,7 +26,6 @@ import com.example.newsapp.Screen.AlgorithmSettingsScreen
 import com.example.newsapp.Screen.ArticleDetailScreen
 import com.example.newsapp.Screen.HomeScreen
 import com.example.newsapp.Screen.NotificationPreferencesScreen
-import com.example.newsapp.Screen.ProfileScreen
 import com.example.newsapp.Screen.PulseProfileScreen
 import com.example.newsapp.Screen.SavedArticle
 import com.example.newsapp.Screen.SettingsScreen
@@ -90,9 +89,6 @@ fun App() {
                     },
                     onNavigateToAlgorithm = {
                         navController.navigate(Routes.algorithmSettings)
-                    },
-                    onNavigateToProfile = {
-                        navController.navigate(Routes.profileAuth)
                     }
                 )
             }
@@ -104,9 +100,6 @@ fun App() {
             }
             composable(Routes.algorithmSettings) {
                 AlgorithmSettingsScreen(onNavigateBack = { navController.popBackStack() })
-            }
-            composable(Routes.profileAuth) {
-                ProfileScreen(onNavigateBack = { navController.popBackStack() })
             }
             composable(
                 route = Routes.articleDetailPattern,

@@ -26,13 +26,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-sealed class AiState {
-    object Idle : AiState()
-    object Loading : AiState()
-    data class Success(val summary: String) : AiState()
-    data class Error(val message: String) : AiState()
-}
-
 @HiltViewModel
 class ArticleDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
