@@ -155,7 +155,7 @@ class NewsRepositoryImpl @Inject constructor(
         }
 
         return try {
-            val response = pulseBackendApi.getNewsFeed(cursor = null)
+            val response = pulseBackendApi.getNewsFeed(cursor = null, limit = 400)
             if (response.isSuccessful) {
                 val articlesDto = response.body() ?: emptyList()
                 val articles = articlesDto.mapNotNull { it.toDomainOrNull() }

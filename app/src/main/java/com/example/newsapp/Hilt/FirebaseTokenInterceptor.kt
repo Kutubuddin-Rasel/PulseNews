@@ -13,9 +13,9 @@ class FirebaseTokenInterceptor @Inject constructor() : Interceptor {
         
         if (user != null) {
             try {
-                // Use getIdToken(false) to use the cached token if valid, 
-                // avoiding unnecessary network calls and latency.
-                val task = user.getIdToken(false)
+                // Use getIdToken(true) to force refresh the token.
+                // This is strictly required by the PulseNews backend for personalized endpoints.
+                val task = user.getIdToken(true)
                 // Tasks.await blocks the current thread until the task completes.
                 // This is safe because OkHttp interceptors run on background network threads.
                 val tokenResult = Tasks.await(task)
