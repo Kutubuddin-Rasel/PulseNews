@@ -21,9 +21,12 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import javax.inject.Inject
 import com.example.newsapp.data.repository.PrivacyPreferencesRepository
 import com.example.newsapp.data.repository.AlgorithmPreferencesRepository
+import com.example.newsapp.data.util.AuthManager
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.example.newsapp.domain.repository.SavedArticleRepository
 
@@ -50,7 +53,8 @@ class HomeViewModel @Inject constructor(
     private val privacyPrefsRepo: PrivacyPreferencesRepository,
     private val localEngagementTracker: com.example.newsapp.data.util.LocalEngagementTracker,
     private val savedStateHandle: SavedStateHandle,
-    private val appTelemetry: com.example.newsapp.data.util.AppTelemetry
+    private val appTelemetry: com.example.newsapp.data.util.AppTelemetry,
+    private val authManager: AuthManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -77,6 +81,29 @@ class HomeViewModel @Inject constructor(
     private val _trendingTopics = MutableStateFlow<List<String>>(emptyList())
     val trendingTopics: StateFlow<List<String>> = _trendingTopics
 
+    val isAuthenticated: StateFlow<Boolean> = authManager.currentUser
+        .map { it != null }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    // Lifecycle-aware foreground poller for real-time edge delivery
+    val firehoseSyncStatus = flow {
+        var lastKnownUpdatedTime: String? = null
+        while (true) {
+            val metaResult = newsRepository.getNewsMetaLastUpdated()
+            if (metaResult.isSuccess) {
+                val currentUpdatedTime = metaResult.getOrNull()
+                if (currentUpdatedTime != null) {
+                    if (lastKnownUpdatedTime == null || lastKnownUpdatedTime != currentUpdatedTime) {
+                        lastKnownUpdatedTime = currentUpdatedTime
+                        newsRepository.syncFirehose()
+                        emit(currentUpdatedTime) // emit to signal UI if needed
+                    }
+                }
+            }
+            delay(30_000)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     init {
         viewModelScope.launch {
             algoPrefsRepo.preferences.collectLatest { prefs ->
@@ -99,29 +126,6 @@ class HomeViewModel @Inject constructor(
                 // Ignore failure for trending topics, it's non-critical
             }
         }
-
-        // Active Foreground Poller for Real-Time Edge Delivery
-        viewModelScope.launch {
-            var lastKnownUpdatedTime: String? = null
-            while (true) {
-                val metaResult = newsRepository.getNewsMetaLastUpdated()
-                if (metaResult.isSuccess) {
-                    val currentUpdatedTime = metaResult.getOrNull()
-                    if (currentUpdatedTime != null) {
-                        if (lastKnownUpdatedTime == null) {
-                            // First run, just store it
-                            lastKnownUpdatedTime = currentUpdatedTime
-                        } else if (lastKnownUpdatedTime != currentUpdatedTime) {
-                            // Backend has new data! Trigger headless sync
-                            lastKnownUpdatedTime = currentUpdatedTime
-                            newsRepository.syncFirehose()
-                        }
-                    }
-                }
-                // Poll every 30 seconds
-                kotlinx.coroutines.delay(30_000)
-            }
-        }
     }
 
     fun setTelemetryConsent(granted: Boolean) {
@@ -135,13 +139,35 @@ class HomeViewModel @Inject constructor(
         .map { it.filter }
         .distinctUntilChanged()
         .flatMapLatest { filter ->
-            newsRepository.getFeed(
-                categoryId = filter.categoryId,
-                keyword = filter.activeQuery.takeIf { it.isNotBlank() },
-                source = filter.selectedSource
-            )
+            if (filter.categoryId == 1 && !isAuthenticated.value) {
+                // Zero-Trust Auth Gate: Unauthenticated users get an empty state on "For You"
+                flow { emit(PagingData.empty()) }
+            } else {
+                newsRepository.getFeed(
+                    categoryId = filter.categoryId,
+                    keyword = filter.activeQuery.takeIf { it.isNotBlank() },
+                    source = filter.selectedSource
+                )
+            }
         }
         .cachedIn(viewModelScope)
+
+    fun forceRefresh() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isRefreshing = true)
+            newsRepository.syncFirehose()
+            _uiState.value = _uiState.value.copy(isRefreshing = false)
+        }
+    }
+
+    fun signIn(activityContext: android.content.Context) {
+        viewModelScope.launch {
+            val result = authManager.signInWithGoogle(activityContext)
+            if (result.isFailure) {
+                _events.emit("Sign in failed. Ensure you have a Google Account on this device.")
+            }
+        }
+    }
 
     fun setCategory(categoryId: Int) {
         val current = _uiState.value.filter

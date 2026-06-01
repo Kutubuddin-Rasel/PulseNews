@@ -14,6 +14,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.paging.compose.collectAsLazyPagingItems
@@ -39,9 +40,12 @@ fun HomeScreen(navController: NavController) {
     var showFilterSheet by remember { mutableStateOf(false) }
 
     val telemetryConsent by vm.telemetryConsent.collectAsState()
+    val isAuthenticated by vm.isAuthenticated.collectAsState()
+    val syncStatus by vm.firehoseSyncStatus.collectAsStateWithLifecycle(initialValue = null)
+
     val articles = vm.feed.collectAsLazyPagingItems()
     val loadState = articles.loadState
-    val isRefreshing = loadState.refresh is androidx.paging.LoadState.Loading
+    val isRefreshing = (loadState.refresh is androidx.paging.LoadState.Loading && articles.itemCount > 0) || uiState.isRefreshing
 
     LaunchedEffect(isRefreshing) {
         if (isRefreshing) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -53,12 +57,18 @@ fun HomeScreen(navController: NavController) {
         vm.events.collect { snackbar.showSnackbar(it) }
     }
 
+    LaunchedEffect(loadState.refresh) {
+        if (loadState.refresh is androidx.paging.LoadState.Error && articles.itemCount > 0) {
+            val err = loadState.refresh as androidx.paging.LoadState.Error
+            snackbar.showSnackbar(err.error.localizedMessage ?: "Could not refresh articles")
+        }
+    }
+
     if (telemetryConsent == null) {
         PrivacyConsentDialog(onAccept = { vm.setTelemetryConsent(true) }, onDecline = { vm.setTelemetryConsent(false) })
     }
 
-    val canRefresh = uiState.filter.categoryId == 1 &&
-        uiState.filter.activeQuery.isEmpty() && uiState.filter.selectedSource == null
+    val canRefresh = uiState.filter.activeQuery.isEmpty() && uiState.filter.selectedSource == null
 
     NewsBackground(Modifier.fillMaxSize()) {
         Scaffold(
@@ -70,8 +80,11 @@ fun HomeScreen(navController: NavController) {
                     onCategoryClick = vm::setCategory,
                     onSearchClick = { showFilterSheet = true },
                     onRefresh = {
-                        if (canRefresh) articles.refresh()
-                        else scope.launch { snackbar.showSnackbar("Refresh only in ‘For You’") }
+                        if (canRefresh) {
+                            if (uiState.filter.categoryId == 1) articles.refresh() else vm.forceRefresh()
+                        } else {
+                            scope.launch { snackbar.showSnackbar("Clear filters to refresh") }
+                        }
                     },
                     onOpenFilters = { showFilterSheet = true },
                 )
@@ -80,12 +93,26 @@ fun HomeScreen(navController: NavController) {
         ) { padding ->
             PullToRefreshBox(
                 isRefreshing = isRefreshing,
-                onRefresh = { if (canRefresh) articles.refresh() },
+                onRefresh = { 
+                    if (canRefresh) {
+                        if (uiState.filter.categoryId == 1) articles.refresh() else vm.forceRefresh()
+                    }
+                },
                 modifier = Modifier.fillMaxSize().padding(padding),
             ) {
                 when {
-                    loadState.refresh is androidx.paging.LoadState.Loading -> FeedSkeleton()
-                    loadState.refresh is androidx.paging.LoadState.Error -> {
+                    uiState.filter.categoryId == 1 && !isAuthenticated -> {
+                        EmptyState(
+                            title = "Your Personalized News",
+                            body = "Sign in to get a tailored feed of articles based on your reading history and preferences.",
+                            actionText = "Sign in with Google",
+                            onAction = {
+                                vm.signIn(context)
+                            }
+                        )
+                    }
+                    loadState.refresh is androidx.paging.LoadState.Loading && articles.itemCount == 0 -> FeedSkeleton()
+                    loadState.refresh is androidx.paging.LoadState.Error && articles.itemCount == 0 -> {
                         val err = loadState.refresh as androidx.paging.LoadState.Error
                         ErrorState(
                             title = "We lost the signal.",
