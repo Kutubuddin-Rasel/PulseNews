@@ -3,6 +3,7 @@ package com.example.newsapp.ViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.SavedStateHandle
+import com.example.newsapp.domain.model.CategoryKey
 import com.example.newsapp.domain.model.UiState
 import com.example.newsapp.domain.repository.NewsRepository
 import com.example.newsapp.module.Article
@@ -27,7 +28,7 @@ class TopHeadlinesViewModel @Inject constructor(
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val state: kotlinx.coroutines.flow.Flow<androidx.paging.PagingData<Article>> = _category
         .flatMapLatest { category ->
-            newsRepository.getFeed(categoryId = 1, keyword = category)
+            newsRepository.getFeed(categoryKey = CategoryKey.FOR_YOU, keyword = category)
         }
         .cachedIn(viewModelScope)
 

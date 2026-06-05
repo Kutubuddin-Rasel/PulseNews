@@ -3,6 +3,7 @@ package com.example.newsapp.ViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.newsapp.domain.model.CategoryKey
 import com.example.newsapp.domain.model.EverythingQuery
 import com.example.newsapp.domain.model.UiState
 import com.example.newsapp.domain.repository.NewsRepository
@@ -38,7 +39,7 @@ class EveryNewsViewModel @Inject constructor(
         .debounce(300)
         .distinctUntilChanged()
         .flatMapLatest { query ->
-            newsRepository.getFeed(categoryId = 1, keyword = query.topic)
+            newsRepository.getFeed(categoryKey = CategoryKey.FOR_YOU, keyword = query.topic)
         }
         .cachedIn(viewModelScope)
 
