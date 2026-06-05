@@ -54,7 +54,7 @@ fun AiSummaryCard(aiState: AiState, modifier: Modifier = Modifier) {
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         is AiState.Error -> Text(
-                            state.message,
+                            "We couldn't generate a summary for this article. Please read the full text below.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

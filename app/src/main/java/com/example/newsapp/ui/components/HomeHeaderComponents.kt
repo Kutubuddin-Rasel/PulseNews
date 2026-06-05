@@ -30,11 +30,14 @@ import com.example.newsapp.ui.tokens.*
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
+import com.example.newsapp.domain.model.CategoryKey
+
 @Composable
 fun HomeHeader(
-    selectedCategoryId: Int,
-    categories: List<Pair<Int, String>>,
-    onCategoryClick: (Int) -> Unit,
+    selectedCategoryKey: CategoryKey,
+    categories: List<Pair<CategoryKey, String>>,
+    lastUpdated: String?,
+    onCategoryClick: (CategoryKey) -> Unit,
     onSearchClick: () -> Unit,
     onRefresh: () -> Unit,
     onOpenFilters: () -> Unit,
@@ -50,8 +53,14 @@ fun HomeHeader(
             Column(Modifier.weight(1f)) {
                 Wordmark()
                 Spacer(Modifier.height(NewsSpacing.xs))
+                val dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE · d MMMM yyyy")).uppercase()
+                val updatedStr = if (lastUpdated != null) {
+                    val relativeTime = com.example.newsapp.ui.components.formatDate(lastUpdated).lowercase()
+                    " • Updated $relativeTime"
+                } else ""
+                
                 Text(
-                    LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE · d MMMM yyyy")).uppercase(),
+                    "$dateStr$updatedStr",
                     style = MetaMono,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -89,7 +98,7 @@ fun HomeHeader(
 
         Spacer(Modifier.height(NewsSpacing.md))
 
-        CategoryStrip(selectedCategoryId, categories, onCategoryClick)
+        CategoryStrip(selectedCategoryKey, categories, onCategoryClick)
         Spacer(Modifier.height(NewsSpacing.sm))
     }
 }
@@ -135,14 +144,14 @@ private fun SquareIconButton(
 }
 
 @Composable
-private fun CategoryStrip(selectedId: Int, items: List<Pair<Int, String>>, onClick: (Int) -> Unit) {
+private fun CategoryStrip(selectedKey: CategoryKey, items: List<Pair<CategoryKey, String>>, onClick: (CategoryKey) -> Unit) {
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
             .padding(horizontal = NewsSpacing.lg),
         horizontalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
     ) {
-        items.forEach { (id, label) ->
-            CategoryChip(label, selectedId == id) { onClick(id) }
+        items.forEach { (key, label) ->
+            CategoryChip(label, selectedKey == key) { onClick(key) }
         }
     }
 }
@@ -178,9 +187,10 @@ fun FeedFilterBottomSheet(
     query: String,
     selectedSource: String?,
     availableSources: List<String>,
+    trendingTopics: List<com.example.newsapp.domain.model.TrendingTopic>,
+    isSearching: Boolean,
     onQueryChange: (String) -> Unit,
     onSourceChange: (String?) -> Unit,
-    onSearch: () -> Unit,
     onDismissRequest: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -191,6 +201,20 @@ fun FeedFilterBottomSheet(
         shape = RoundedCornerShape(topStart = NewsRadius.lg, topEnd = NewsRadius.lg),
     ) {
         Column(Modifier.fillMaxWidth().padding(horizontal = NewsSpacing.lg, vertical = NewsSpacing.md)) {
+            if (trendingTopics.isNotEmpty()) {
+                Text("TRENDING NOW", style = MetaMono, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(NewsSpacing.sm))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(NewsSpacing.sm)
+                ) {
+                    trendingTopics.forEach { topic ->
+                        CategoryChip("#${topic.tag}", false) { onQueryChange(topic.tag) }
+                    }
+                }
+                Spacer(Modifier.height(NewsSpacing.xl))
+            }
+
             Text("SOURCE", style = MetaMono, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(NewsSpacing.sm))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
@@ -212,8 +236,14 @@ fun FeedFilterBottomSheet(
                 placeholder = { Text("e.g. \"semiconductors\"") },
                 shape = RoundedCornerShape(NewsRadius.md),
                 trailingIcon = {
-                    IconButton(onClick = { onSearch(); onDismissRequest() }) {
-                        Icon(Icons.Filled.Search, contentDescription = "Submit search")
+                    if (isSearching) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        Icon(Icons.Filled.Search, contentDescription = "Search icon")
                     }
                 },
             )
