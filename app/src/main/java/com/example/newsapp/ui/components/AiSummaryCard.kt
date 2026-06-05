@@ -92,7 +92,7 @@ private fun AiHeader(state: AiState) {
         }
         Spacer(Modifier.width(NewsSpacing.md))
         Text(
-            if (state is AiState.Error) "Couldn\u2019t generate summary" else if (isFallback) "Key Excerpts \uD83D\uDCCC" else "Gemini TL;DR",
+            if (state is AiState.Error) "Couldn\u2019t generate summary" else if (isFallback) "Key Excerpts \uD83D\uDCCC" else "Pulse AI Summary",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
