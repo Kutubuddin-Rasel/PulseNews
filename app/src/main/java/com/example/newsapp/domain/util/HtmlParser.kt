@@ -21,131 +21,53 @@ object HtmlParser {
     private val IGNORED_TAGS = setOf("nav", "aside", "footer", "script", "style", "header", "form", "button")
     
     fun parse(html: String): ParsedArticle {
-        var title = ""
-        var heroImageUrl: String? = null
+        val document = org.jsoup.Jsoup.parse(html)
+        var title = document.title() ?: ""
+        var heroImageUrl: String? = document.select("meta[property=og:image]").attr("content")
+        if (heroImageUrl?.isBlank() == true) heroImageUrl = document.select("meta[property='og:image']").attr("content")
+        if (heroImageUrl?.isBlank() == true) heroImageUrl = null
+
         val blocks = mutableListOf<ArticleBlock>()
         
-        // FSM State
-        var inTag = false
-        var isClosingTag = false
-        var ignoreDepth = 0
-        
-        val tagNameBuffer = StringBuilder()
-        val textBuffer = StringBuilder()
-        val attrBuffer = StringBuilder()
-        
-        // Stack to track tag hierarchy
-        val tagStack = ArrayDeque<String>()
-        
-        var i = 0
-        val len = html.length
-        
-        while (i < len) {
-            val c = html[i]
-            
-            if (!inTag && c == '<') {
-                // Entering a tag
-                inTag = true
-                isClosingTag = false
-                tagNameBuffer.setLength(0)
-                attrBuffer.setLength(0)
-                
-                // Check if it's a closing tag
-                if (i + 1 < len && html[i + 1] == '/') {
-                    isClosingTag = true
-                    i++
-                } else if (i + 1 < len && html[i + 1] == '!') {
-                    // Skip comments <!-- ... -->
-                    if (i + 3 < len && html[i + 2] == '-' && html[i + 3] == '-') {
-                        val commentEnd = html.indexOf("-->", i + 4)
-                        if (commentEnd != -1) {
-                            i = commentEnd + 2
-                        }
-                    } else {
-                        // DOCTYPE or similar
-                        val end = html.indexOf('>', i)
-                        if (end != -1) i = end
-                    }
-                    inTag = false
-                    i++
-                    continue
+        // Remove noise tags
+        document.select("nav, aside, footer, script, style, header, form, button, iframe").remove()
+
+        // Try extracting standard tags first
+        val elements = document.body().select("p, h1, h2, h3, img[src]")
+        elements.forEach { element ->
+            when (element.tagName()) {
+                "p" -> {
+                    val text = element.text()
+                    if (text.length > 30) blocks.add(ArticleBlock.Text(text, TextType.PARAGRAPH))
                 }
-            } else if (inTag && c == '>') {
-                // Exiting a tag
-                inTag = false
-                val tagName = tagNameBuffer.toString().lowercase()
-                
-                if (isClosingTag) {
-                    if (tagStack.isNotEmpty() && tagStack.peek() == tagName) {
-                        tagStack.pop()
-                    }
-                    if (IGNORED_TAGS.contains(tagName) && ignoreDepth > 0) {
-                        ignoreDepth--
-                    }
-                    
-                    // Flush text if block closes
-                    if (ignoreDepth == 0 && textBuffer.isNotBlank()) {
-                        when (tagName) {
-                            "p" -> {
-                                val text = textBuffer.toString().trim()
-                                if (text.length > 30) {
-                                    blocks.add(ArticleBlock.Text(text, TextType.PARAGRAPH))
-                                }
-                                textBuffer.setLength(0)
-                            }
-                            "h1" -> { blocks.add(ArticleBlock.Text(textBuffer.toString().trim(), TextType.H1)); textBuffer.setLength(0) }
-                            "h2" -> { blocks.add(ArticleBlock.Text(textBuffer.toString().trim(), TextType.H2)); textBuffer.setLength(0) }
-                            "h3" -> { blocks.add(ArticleBlock.Text(textBuffer.toString().trim(), TextType.H3)); textBuffer.setLength(0) }
-                        }
-                    }
-                } else {
-                    if (!tagName.endsWith("/")) {
-                        tagStack.push(tagName)
-                        if (IGNORED_TAGS.contains(tagName)) {
-                            ignoreDepth++
-                        }
-                    }
-                    
-                    // Process attributes for the opening tag
-                    val attrs = attrBuffer.toString()
-                    if (tagName == "meta") {
-                        if (attrs.contains("property=\"og:title\"") || attrs.contains("property='og:title'")) {
-                            title = extractAttr(attrs, "content") ?: title
-                        }
-                        if (attrs.contains("property=\"og:image\"") || attrs.contains("property='og:image'")) {
-                            heroImageUrl = extractAttr(attrs, "content") ?: heroImageUrl
-                        }
-                    } else if (tagName == "title" && title.isEmpty()) {
-                        // Title will be captured as text, handle special case if needed.
-                    } else if (tagName == "img" && ignoreDepth == 0) {
-                        val src = extractAttr(attrs, "src")
-                        if (src != null && src.startsWith("http")) {
-                            blocks.add(ArticleBlock.Image(url = src))
-                        }
-                    } else if (tagName == "iframe" && ignoreDepth == 0) {
-                        val src = extractAttr(attrs, "src")
-                        if (src != null && src.contains("youtube")) {
-                            blocks.add(ArticleBlock.Video(url = src, platform = "YouTube"))
-                        }
-                    }
-                }
-            } else if (inTag) {
-                // Collect tag name or attributes
-                if (c == ' ' && tagNameBuffer.isNotEmpty() && attrBuffer.isEmpty()) {
-                    // Transition from tag name to attributes
-                    attrBuffer.append(' ')
-                } else if (attrBuffer.isNotEmpty() || (c == ' ' && tagNameBuffer.isNotEmpty())) {
-                    attrBuffer.append(c)
-                } else if (c != ' ') {
-                    tagNameBuffer.append(c)
-                }
-            } else {
-                // Collect text data if not ignored
-                if (ignoreDepth == 0) {
-                    textBuffer.append(c)
+                "h1" -> { val text = element.text(); if (text.isNotBlank()) blocks.add(ArticleBlock.Text(text, TextType.H1)) }
+                "h2" -> { val text = element.text(); if (text.isNotBlank()) blocks.add(ArticleBlock.Text(text, TextType.H2)) }
+                "h3" -> { val text = element.text(); if (text.isNotBlank()) blocks.add(ArticleBlock.Text(text, TextType.H3)) }
+                "img" -> {
+                    val src = element.attr("src")
+                    if (src.startsWith("http")) blocks.add(ArticleBlock.Image(url = src))
                 }
             }
-            i++
+        }
+        
+        // Fallback if no readable paragraphs were found (e.g. site uses only <div>s)
+        if (blocks.none { it is ArticleBlock.Text && it.type == TextType.PARAGRAPH }) {
+            val text = document.body().text()
+            if (text.isNotBlank()) {
+                // Split by periods followed by space to create artificial paragraphs
+                val chunks = text.split("(?<=\\.)\\s+".toRegex())
+                var currentChunk = ""
+                for (chunk in chunks) {
+                    currentChunk += "$chunk "
+                    if (currentChunk.length > 250) {
+                        blocks.add(ArticleBlock.Text(currentChunk.trim(), TextType.PARAGRAPH))
+                        currentChunk = ""
+                    }
+                }
+                if (currentChunk.isNotBlank()) {
+                    blocks.add(ArticleBlock.Text(currentChunk.trim(), TextType.PARAGRAPH))
+                }
+            }
         }
         
         return ParsedArticle(
@@ -153,24 +75,5 @@ object HtmlParser {
             heroImageUrl = heroImageUrl,
             blocks = blocks
         )
-    }
-
-    private fun extractAttr(attrs: String, attrName: String): String? {
-        val search = "$attrName="
-        val start = attrs.indexOf(search)
-        if (start == -1) return null
-        
-        var valStart = start + search.length
-        if (valStart >= attrs.length) return null
-        
-        val quote = attrs[valStart]
-        if (quote == '"' || quote == '\'') {
-            valStart++
-            val end = attrs.indexOf(quote, valStart)
-            if (end != -1) {
-                return attrs.substring(valStart, end)
-            }
-        }
-        return null
     }
 }

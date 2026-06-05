@@ -13,6 +13,16 @@ class FeedScorer @Inject constructor(
 
     private val TRUSTED_SOURCES = listOf("reuters", "ap", "associated press", "bbc", "npr", "bloomberg")
 
+    companion object {
+        private val dateFormat = object : ThreadLocal<SimpleDateFormat>() {
+            override fun initialValue(): SimpleDateFormat {
+                val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault())
+                format.timeZone = TimeZone.getTimeZone("UTC")
+                return format
+            }
+        }
+    }
+
     /**
      * Computes an enterprise-grade relevance score for an article.
      * Takes into account:
@@ -26,11 +36,37 @@ class FeedScorer @Inject constructor(
         userWeights: Map<String, Float>,
         currentTimeMillis: Long
     ): Float {
+        return computeScore(
+            title = article.title,
+            content = article.content,
+            description = article.description,
+            sourceName = article.source.name,
+            sourceTier = article.sourceTier,
+            publishedAt = article.publishedAt,
+            userWeights = userWeights,
+            currentTimeMillis = currentTimeMillis
+        )
+    }
+
+    /**
+     * Overloaded method to compute score using primitive components,
+     * preventing allocation of full domain Article and nested objects.
+     */
+    fun computeScore(
+        title: String,
+        content: String?,
+        description: String?,
+        sourceName: String,
+        sourceTier: Int?,
+        publishedAt: String?,
+        userWeights: Map<String, Float>,
+        currentTimeMillis: Long
+    ): Float {
         var score = 0f
 
-        val titleLower = article.title.lowercase(Locale.getDefault())
-        val contentLower = article.content?.lowercase(Locale.getDefault()) ?: ""
-        val descriptionLower = article.description?.lowercase(Locale.getDefault()) ?: ""
+        val titleLower = title.lowercase(Locale.getDefault())
+        val contentLower = content?.lowercase(Locale.getDefault()) ?: ""
+        val descriptionLower = description?.lowercase(Locale.getDefault()) ?: ""
 
         val fullText = "$titleLower $contentLower $descriptionLower"
 
@@ -56,18 +92,23 @@ class FeedScorer @Inject constructor(
         }
 
         // 3. Source Trustworthiness
-        val sourceLower = article.source.name.lowercase(Locale.getDefault())
+        val sourceLower = sourceName.lowercase(Locale.getDefault())
         if (TRUSTED_SOURCES.any { sourceLower.contains(it) }) {
             score += 2.0f // Flat bonus for highly trusted wire services
+        }
+        
+        // Boost Tier 1 / Tier 2 sources specifically based on backend taxonomy mapping
+        when (sourceTier) {
+            1 -> score += 3.0f // Massive bonus for top-tier sources
+            2 -> score += 1.5f // Good bonus for tier 2
+            3 -> score -= 1.0f // Slight penalty for tier 3 if they aren't directly matched
         }
 
         // 4. Recency Decay
         // News loses relevance. We apply a decay multiplier based on age.
         var decayMultiplier = 1.0f
         try {
-            val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault())
-            dateFormat.timeZone = TimeZone.getTimeZone("UTC")
-            val publishedDate = article.publishedAt?.let { dateFormat.parse(it) }
+            val publishedDate = publishedAt?.let { dateFormat.get()?.parse(it) }
             
             if (publishedDate != null) {
                 val ageInMillis = currentTimeMillis - publishedDate.time
