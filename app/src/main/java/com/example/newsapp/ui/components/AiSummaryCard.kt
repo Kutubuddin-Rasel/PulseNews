@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.example.newsapp.ViewModel.AiState
 import com.example.newsapp.ui.theme.AccentGradient
 import com.example.newsapp.ui.theme.MetaMono
+import com.example.newsapp.ui.theme.ReaderBody
 import com.example.newsapp.ui.tokens.*
 
 @Composable
@@ -49,16 +50,12 @@ fun AiSummaryCard(aiState: AiState, modifier: Modifier = Modifier) {
                         is AiState.Loading -> AiLoading()
                         is AiState.Success -> Text(
                             state.summary,
-                            style = MaterialTheme.typography.headlineSmall.copy(
-                                fontSize = 17.sp, lineHeight = 24.sp, fontWeight = FontWeight.Normal
-                            ),
+                            style = ReaderBody,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         is AiState.SuccessFallback -> Text(
                             state.summary,
-                            style = MaterialTheme.typography.headlineSmall.copy(
-                                fontSize = 17.sp, lineHeight = 24.sp, fontWeight = FontWeight.Normal
-                            ),
+                            style = ReaderBody,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         is AiState.Error -> Text(
