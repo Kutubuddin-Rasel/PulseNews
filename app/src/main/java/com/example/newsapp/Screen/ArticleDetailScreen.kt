@@ -70,7 +70,7 @@ fun ArticleDetailScreen(navController: NavController) {
 
         val progress = if (scrollState.maxValue == 0) 0f
             else scrollState.value.toFloat() / scrollState.maxValue
-        val sourceLabel = listOfNotNull(item.source.name, item.taxonomy?.firstOrNull()).joinToString(" · ")
+        val sourceLabel = listOfNotNull(item.source.name, item.taxonomy?.categories?.firstOrNull()).joinToString(" · ")
 
         Scaffold(
             topBar = {

@@ -7,5 +7,9 @@ import androidx.room.Fts4
 @Entity(tableName = "cached_feed_fts")
 data class CachedFeedFtsEntity(
     val title: String,
-    val description: String?
+    val description: String?,
+    @androidx.room.ColumnInfo(name = "taxonomyCategories")
+    val taxonomyCategories: String?,
+    @androidx.room.ColumnInfo(name = "taxonomyTags")
+    val taxonomyTags: String?
 )
