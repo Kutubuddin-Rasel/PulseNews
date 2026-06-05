@@ -22,11 +22,7 @@ import com.example.newsapp.ViewModel.HomeViewModel
 import com.example.newsapp.navigateToArticleDetail
 import com.example.newsapp.ui.components.*
 import com.example.newsapp.ui.tokens.NewsSpacing
-
-private val CATEGORIES = listOf(
-    1 to "For You", 2 to "Technology", 3 to "Business",
-    4 to "Politics", 5 to "Sports", 6 to "Entertainment", 7 to "Health",
-)
+import com.example.newsapp.domain.model.CategoryKey
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,13 +32,14 @@ fun HomeScreen(navController: NavController) {
     val listState = rememberLazyListState()
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
-    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     var showFilterSheet by remember { mutableStateOf(false) }
 
     val telemetryConsent by vm.telemetryConsent.collectAsState()
     val isAuthenticated by vm.isAuthenticated.collectAsState()
-    val syncStatus by vm.firehoseSyncStatus.collectAsStateWithLifecycle(initialValue = null)
-
+    val savedArticles by vm.savedArticles.collectAsState()
+    val categories by vm.dynamicCategories.collectAsState()
+    val lastUpdated by vm.lastUpdated.collectAsState()
+    val trendingTopics by vm.trendingTopics.collectAsState()
     val articles = vm.feed.collectAsLazyPagingItems()
     val loadState = articles.loadState
     val isRefreshing = (loadState.refresh is androidx.paging.LoadState.Loading && articles.itemCount > 0) || uiState.isRefreshing
@@ -72,16 +69,18 @@ fun HomeScreen(navController: NavController) {
 
     NewsBackground(Modifier.fillMaxSize()) {
         Scaffold(
-            modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
+            modifier = Modifier.fillMaxSize(),
             topBar = {
                 HomeHeader(
-                    selectedCategoryId = uiState.filter.categoryId,
-                    categories = CATEGORIES,
+                    selectedCategoryKey = uiState.filter.categoryKey,
+                    categories = categories,
+                    lastUpdated = lastUpdated,
                     onCategoryClick = vm::setCategory,
                     onSearchClick = { showFilterSheet = true },
                     onRefresh = {
                         if (canRefresh) {
-                            if (uiState.filter.categoryId == 1) articles.refresh() else vm.forceRefresh()
+                            vm.fetchNewsMeta()
+                            articles.refresh()
                         } else {
                             scope.launch { snackbar.showSnackbar("Clear filters to refresh") }
                         }
@@ -95,13 +94,13 @@ fun HomeScreen(navController: NavController) {
                 isRefreshing = isRefreshing,
                 onRefresh = { 
                     if (canRefresh) {
-                        if (uiState.filter.categoryId == 1) articles.refresh() else vm.forceRefresh()
+                        articles.refresh()
                     }
                 },
                 modifier = Modifier.fillMaxSize().padding(padding),
             ) {
                 when {
-                    uiState.filter.categoryId == 1 && !isAuthenticated -> {
+                    uiState.filter.categoryKey == CategoryKey.FOR_YOU && !isAuthenticated -> {
                         EmptyState(
                             title = "Your Personalized News",
                             body = "Sign in to get a tailored feed of articles based on your reading history and preferences.",
@@ -125,18 +124,19 @@ fun HomeScreen(navController: NavController) {
                         body = "Try clearing your filters or switching back to For You.",
                         actionText = "Reset filters",
                         onAction = {
-                            vm.setCategory(1); vm.setSource(null)
+                            vm.setCategory(CategoryKey.FOR_YOU); vm.setSource(null)
                             vm.updateQueryInput(""); vm.submitSearch()
                         },
                     )
                     else -> LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
                         state = listState,
                         contentPadding = PaddingValues(vertical = NewsSpacing.sm),
                         verticalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
                     ) {
                         items(
                             count = articles.itemCount,
-                            key = { i -> articles.peek(i)?.url ?: i },
+                            key = { i -> "${articles.peek(i)?.url}_$i" },
                         ) { i ->
                             articles[i]?.let { article ->
                                 val variant = when {
@@ -150,7 +150,13 @@ fun HomeScreen(navController: NavController) {
                                         vm.trackArticleClick(article.url ?: "")
                                         navController.navigateToArticleDetail(article.url ?: "")
                                     },
-                                    onSave = { vm.saveArticle(article) },
+                                    onSave = { 
+                                        if (savedArticles.contains(article.url)) {
+                                            vm.deleteArticle(article)
+                                        } else {
+                                            vm.saveArticle(article)
+                                        }
+                                    },
                                     onShare = {
                                         val sendIntent = android.content.Intent().apply {
                                             action = android.content.Intent.ACTION_SEND
@@ -159,10 +165,23 @@ fun HomeScreen(navController: NavController) {
                                         }
                                         context.startActivity(android.content.Intent.createChooser(sendIntent, null))
                                     },
+                                    isSaved = savedArticles.contains(article.url)
                                 )
                             }
                         }
-                        item { PagingFooter(isVisible = loadState.append is androidx.paging.LoadState.Loading) }
+                        if (loadState.append is androidx.paging.LoadState.Error) {
+                            val err = loadState.append as androidx.paging.LoadState.Error
+                            item {
+                                ErrorState(
+                                    title = "Failed to load more",
+                                    body = err.error.localizedMessage ?: "Could not load more articles.",
+                                    retryable = true,
+                                    onRetry = articles::retry
+                                )
+                            }
+                        } else {
+                            item { PagingFooter(isVisible = loadState.append is androidx.paging.LoadState.Loading) }
+                        }
                     }
                 }
             }
@@ -173,9 +192,10 @@ fun HomeScreen(navController: NavController) {
                     query = uiState.filter.queryInput,
                     selectedSource = uiState.filter.selectedSource,
                     availableSources = sources,
+                    trendingTopics = trendingTopics,
+                    isSearching = articles.loadState.refresh is androidx.paging.LoadState.Loading,
                     onQueryChange = vm::updateQueryInput,
                     onSourceChange = vm::setSource,
-                    onSearch = vm::submitSearch,
                     onDismissRequest = { showFilterSheet = false },
                 )
             }

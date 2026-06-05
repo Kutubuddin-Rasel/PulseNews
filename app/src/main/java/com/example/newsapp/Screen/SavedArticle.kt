@@ -32,6 +32,7 @@ fun SavedArticle(navController: NavController) {
 
     val snackbar = com.example.newsapp.ui.components.LocalPulseSnackbar.current
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     LaunchedEffect(vm) {
         vm.events.collect { event ->
@@ -69,24 +70,21 @@ fun SavedArticle(navController: NavController) {
                         verticalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
                     ) {
                         items(items = s.data, key = { it.url }) { article ->
-                            val dismissState = rememberSwipeToDismissBoxState(
-                                positionalThreshold = { it * 0.25f },
-                                confirmValueChange = { v ->
-                                    if (v != SwipeToDismissBoxValue.Settled) { vm.delete(article); true } else false
-                                },
+                            ArticleCard(
+                                article = article,
+                                variant = ArticleCardVariant.Standard,
+                                onClick = { navController.navigateToArticleDetail(article.url) },
+                                isSaved = true,
+                                onSave = { vm.delete(article) },
+                                onShare = {
+                                    val sendIntent = android.content.Intent().apply {
+                                        action = android.content.Intent.ACTION_SEND
+                                        putExtra(android.content.Intent.EXTRA_TEXT, article.url)
+                                        type = "text/plain"
+                                    }
+                                    context.startActivity(android.content.Intent.createChooser(sendIntent, null))
+                                }
                             )
-                            SwipeToDismissBox(
-                                state = dismissState,
-                                backgroundContent = { SwipeDeleteBackground() },
-                                enableDismissFromStartToEnd = true,
-                                enableDismissFromEndToStart = true,
-                            ) {
-                                ArticleCard(
-                                    article = article,
-                                    variant = ArticleCardVariant.Compact,
-                                    onClick = { navController.navigateToArticleDetail(article.url) },
-                                )
-                            }
                         }
                     }
                 }
@@ -103,22 +101,5 @@ private fun SavedHeader(count: Int) {
         Spacer(Modifier.height(NewsSpacing.xs))
         Text("$count articles".uppercase(), style = MetaMono,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun SwipeDeleteBackground() {
-    Surface(
-        modifier = Modifier.fillMaxSize().padding(horizontal = NewsSpacing.lg),
-        color = MaterialTheme.colorScheme.errorContainer,
-        shape = RoundedCornerShape(NewsRadius.card),
-    ) {
-        Row(
-            Modifier.fillMaxSize().padding(horizontal = NewsSpacing.lg),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.End,
-        ) {
-            Text("DELETE", style = MetaMono, color = MaterialTheme.colorScheme.onErrorContainer)
-        }
     }
 }
