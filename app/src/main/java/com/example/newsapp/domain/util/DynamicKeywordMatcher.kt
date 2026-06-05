@@ -22,8 +22,10 @@ class DynamicKeywordMatcher @Inject constructor(
         // and swap the pointer. Since 'engine' is @Volatile, the swap is thread-safe.
         CoroutineScope(Dispatchers.Default).launch {
             taxonomyRepository.dictionaryFlow.collectLatest { dictionary ->
+                // Map CategoryKey to String to be compatible with AhoCorasickEngine
+                val stringDict = dictionary.mapKeys { it.key.value }
                 // This builds the Trie and failure links
-                val newEngine = AhoCorasickEngine(dictionary)
+                val newEngine = AhoCorasickEngine(stringDict)
                 // Atomic pointer swap
                 engine = newEngine
             }
