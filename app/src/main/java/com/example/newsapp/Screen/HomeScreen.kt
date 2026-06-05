@@ -1,6 +1,9 @@
 package com.example.newsapp.Screen
 
+import com.example.newsapp.Routes
 import androidx.compose.animation.*
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -40,12 +43,17 @@ fun HomeScreen(navController: NavController) {
     val categories by vm.dynamicCategories.collectAsState()
     val lastUpdated by vm.lastUpdated.collectAsState()
     val trendingTopics by vm.trendingTopics.collectAsState()
-    val articles = vm.feed.collectAsLazyPagingItems()
+    val currentFeed = remember(uiState.filter, isAuthenticated) { vm.getFeed(uiState.filter) }
+    val articles = currentFeed.collectAsLazyPagingItems()
     val loadState = articles.loadState
     val isRefreshing = (loadState.refresh is androidx.paging.LoadState.Loading && articles.itemCount > 0) || uiState.isRefreshing
 
+    var wasRefreshing by remember { mutableStateOf(false) }
     LaunchedEffect(isRefreshing) {
-        if (isRefreshing) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        if (wasRefreshing && !isRefreshing) {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+        wasRefreshing = isRefreshing
     }
     val snackbar = com.example.newsapp.ui.components.LocalPulseSnackbar.current
     val scope = rememberCoroutineScope()
@@ -99,45 +107,59 @@ fun HomeScreen(navController: NavController) {
                 },
                 modifier = Modifier.fillMaxSize().padding(padding),
             ) {
-                when {
-                    uiState.filter.categoryKey == CategoryKey.FOR_YOU && !isAuthenticated -> {
-                        EmptyState(
-                            title = "Your Personalized News",
-                            body = "Sign in to get a tailored feed of articles based on your reading history and preferences.",
-                            actionText = "Sign in with Google",
+                AnimatedContent(
+                    targetState = uiState.filter,
+                    transitionSpec = {
+                        (fadeIn(animationSpec = tween(400, easing = LinearOutSlowInEasing)) + 
+                         scaleIn(initialScale = 0.95f, animationSpec = tween(400, easing = LinearOutSlowInEasing))) togetherWith 
+                        fadeOut(animationSpec = tween(200))
+                    },
+                    label = "category_feed_transition",
+                    modifier = Modifier.fillMaxSize()
+                ) { targetFilter ->
+                    val targetFeed = remember(targetFilter, isAuthenticated) { vm.getFeed(targetFilter) }
+                    val targetArticles = targetFeed.collectAsLazyPagingItems()
+                    val targetLoadState = targetArticles.loadState
+                    
+                    when {
+                        targetFilter.categoryKey == CategoryKey.FOR_YOU && !isAuthenticated -> {
+                            EmptyState(
+                                title = "Your Personalized News",
+                                body = "Sign in to get a tailored feed of articles based on your reading history and preferences.",
+                                actionText = "Sign in with Google",
+                                onAction = {
+                                    vm.signIn(context)
+                                }
+                            )
+                        }
+                        targetLoadState.refresh is androidx.paging.LoadState.Loading && targetArticles.itemCount == 0 -> FeedSkeleton()
+                        targetLoadState.refresh is androidx.paging.LoadState.Error && targetArticles.itemCount == 0 -> {
+                            val err = targetLoadState.refresh as androidx.paging.LoadState.Error
+                            ErrorState(
+                                title = "We lost the signal.",
+                                body = err.error.localizedMessage ?: "PulseNews can’t reach the network right now.",
+                                retryable = true, onRetry = targetArticles::retry,
+                            )
+                        }
+                        targetArticles.itemCount == 0 -> EmptyState(
+                            title = "Nothing here yet.",
+                            body = "Try clearing your filters or switching back to For You.",
+                            actionText = "Reset filters",
                             onAction = {
-                                vm.signIn(context)
-                            }
+                                vm.setCategory(CategoryKey.FOR_YOU); vm.setSource(null)
+                            },
                         )
-                    }
-                    loadState.refresh is androidx.paging.LoadState.Loading && articles.itemCount == 0 -> FeedSkeleton()
-                    loadState.refresh is androidx.paging.LoadState.Error && articles.itemCount == 0 -> {
-                        val err = loadState.refresh as androidx.paging.LoadState.Error
-                        ErrorState(
-                            title = "We lost the signal.",
-                            body = err.error.localizedMessage ?: "PulseNews can’t reach the network right now.",
-                            retryable = true, onRetry = articles::retry,
-                        )
-                    }
-                    articles.itemCount == 0 -> EmptyState(
-                        title = "Nothing here yet.",
-                        body = "Try clearing your filters or switching back to For You.",
-                        actionText = "Reset filters",
-                        onAction = {
-                            vm.setCategory(CategoryKey.FOR_YOU); vm.setSource(null)
-                        },
-                    )
-                    else -> LazyColumn(
+                        else -> LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         state = listState,
                         contentPadding = PaddingValues(vertical = NewsSpacing.sm),
                         verticalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
                     ) {
                         items(
-                            count = articles.itemCount,
-                            key = { i -> "${articles.peek(i)?.url}_$i" },
+                            count = targetArticles.itemCount,
+                            key = { i -> "${targetArticles.peek(i)?.url}_$i" },
                         ) { i ->
-                            articles[i]?.let { article ->
+                            targetArticles[i]?.let { article ->
                                 val variant = when {
                                     i == 0 -> ArticleCardVariant.Featured
                                     else -> ArticleCardVariant.Standard
@@ -168,24 +190,41 @@ fun HomeScreen(navController: NavController) {
                                 )
                             }
                         }
-                        if (loadState.append is androidx.paging.LoadState.Error) {
-                            val err = loadState.append as androidx.paging.LoadState.Error
-                            item {
-                                ErrorState(
-                                    title = "Failed to load more",
-                                    body = err.error.localizedMessage ?: "Could not load more articles.",
-                                    retryable = true,
-                                    onRetry = articles::retry
-                                )
+                        val appendState = targetLoadState.append
+                        when {
+                            appendState is androidx.paging.LoadState.Error -> {
+                                item {
+                                    ErrorState(
+                                        title = "Failed to load more",
+                                        body = appendState.error.localizedMessage ?: "Could not load more articles.",
+                                        retryable = true,
+                                        onRetry = targetArticles::retry,
+                                    )
+                                }
                             }
-                        } else {
-                            item { PagingFooter(isVisible = loadState.append is androidx.paging.LoadState.Loading) }
+                            appendState is androidx.paging.LoadState.Loading -> {
+                                item { PagingFooter(isVisible = true) }
+                            }
+                            appendState is androidx.paging.LoadState.NotLoading
+                                    && appendState.endOfPaginationReached
+                                    && targetArticles.itemCount > 0 -> {
+                                item {
+                                    EndOfFeedState(
+                                        lastUpdated = lastUpdated,
+                                        onBrowseSaved = {
+                                            navController.navigate(Routes.saved)
+                                        }
+                                    )
+                                }
+                                item { Spacer(Modifier.height(NewsSpacing.md)) }
+                            }
                         }
                     }
                 }
             }
+        }
 
-            if (showFilterSheet) {
+        if (showFilterSheet) {
                 val sources by vm.availableSources.collectAsState()
                 SourceFilterBottomSheet(
                     selectedSource = uiState.filter.selectedSource,
