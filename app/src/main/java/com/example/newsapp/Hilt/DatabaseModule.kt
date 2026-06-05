@@ -18,6 +18,12 @@ import javax.inject.Singleton
 class DatabaseModule {
     @Provides
     @Singleton
+    fun provideWorkManager(@ApplicationContext context: Context): androidx.work.WorkManager {
+        return androidx.work.WorkManager.getInstance(context)
+    }
+
+    @Provides
+    @Singleton
     fun provideRoom(@ApplicationContext context: Context): ArticleDatabase {
         return Room.databaseBuilder(context, ArticleDatabase::class.java, "ArticleDB")
             .fallbackToDestructiveMigration(dropAllTables = true)
