@@ -1,5 +1,7 @@
 package com.example.newsapp.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -12,10 +14,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
@@ -69,7 +76,7 @@ fun HomeHeader(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(NewsSpacing.xs)) {
                 SquareIconButton(Icons.Filled.Tune, "Filters", primary = false, onClick = onOpenFilters)
-                SquareIconButton(Icons.Filled.Refresh, "Refresh feed", primary = true, onClick = onRefresh)
+                SquareIconButton(Icons.Filled.Refresh, "Refresh feed", primary = false, onClick = onRefresh)
             }
         }
 
@@ -146,14 +153,76 @@ private fun SquareIconButton(
 }
 
 @Composable
-private fun CategoryStrip(selectedKey: CategoryKey, items: List<Pair<CategoryKey, String>>, onClick: (CategoryKey) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-            .padding(horizontal = NewsSpacing.lg),
-        horizontalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
-    ) {
-        items.forEach { (key, label) ->
-            CategoryChip(label, selectedKey == key) { onClick(key) }
+private fun CategoryStrip(
+    selectedKey: CategoryKey,
+    items: List<Pair<CategoryKey, String>>,
+    onClick: (CategoryKey) -> Unit,
+) {
+    val scrollState = rememberScrollState()
+    val background = MaterialTheme.colorScheme.background
+
+    val leftFadeAlpha by animateFloatAsState(
+        targetValue = if (scrollState.canScrollBackward) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = NewsMotion.normal,
+            easing = NewsMotion.standardEasing,
+        ),
+        label = "categoryLeftFade",
+    )
+    val rightFadeAlpha by animateFloatAsState(
+        targetValue = if (scrollState.canScrollForward) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = NewsMotion.normal,
+            easing = NewsMotion.standardEasing,
+        ),
+        label = "categoryRightFade",
+    )
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(scrollState)
+                .padding(horizontal = NewsSpacing.lg),
+            horizontalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
+        ) {
+            items.forEach { (key, label) ->
+                CategoryChip(label, selectedKey == key) { onClick(key) }
+            }
+        }
+
+        Row(modifier = Modifier.matchParentSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(28.dp)
+                    .graphicsLayer { alpha = leftFadeAlpha }
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(
+                                background,
+                                background.copy(alpha = 0f),
+                            ),
+                        ),
+                    ),
+            )
+
+            Spacer(Modifier.weight(1f))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(28.dp)
+                    .graphicsLayer { alpha = rightFadeAlpha }
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(
+                                background.copy(alpha = 0f),
+                                background,
+                            ),
+                        ),
+                    ),
+            )
         }
     }
 }
@@ -161,21 +230,35 @@ private fun CategoryStrip(selectedKey: CategoryKey, items: List<Pair<CategoryKey
 @Composable
 fun CategoryChip(text: String, selected: Boolean, onClick: () -> Unit) {
     val haptic = LocalHapticFeedback.current
+
+    val containerColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerLowest,
+        animationSpec = tween(durationMillis = 400, easing = LinearOutSlowInEasing),
+        label = "chipContainerColor"
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+        animationSpec = tween(durationMillis = 400, easing = LinearOutSlowInEasing),
+        label = "chipBorderColor"
+    )
+    val textColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+        animationSpec = tween(durationMillis = 400, easing = LinearOutSlowInEasing),
+        label = "chipTextColor"
+    )
+
     Surface(
         onClick = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onClick() },
         shape = RoundedCornerShape(NewsRadius.pill),
-        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerLowest,
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-        ),
+        color = containerColor,
+        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
         modifier = Modifier.heightIn(min = 36.dp).semantics { contentDescription = text },
     ) {
         Box(Modifier.padding(horizontal = 14.dp, vertical = 9.dp), contentAlignment = Alignment.Center) {
             Text(
                 text,
                 style = MaterialTheme.typography.labelLarge,
-                color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = textColor,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
             )
