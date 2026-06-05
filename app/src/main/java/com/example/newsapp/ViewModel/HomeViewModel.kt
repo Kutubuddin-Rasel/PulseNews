@@ -140,8 +140,7 @@ class HomeViewModel @Inject constructor(
     private data class FeedCacheKey(val filter: FilterUiState, val isAuthenticated: Boolean)
     private val feedCache = mutableMapOf<FeedCacheKey, Flow<PagingData<Article>>>()
 
-    val feed: Flow<PagingData<Article>> get() {
-        val filter = _uiState.value.filter
+    fun getFeed(filter: FilterUiState): Flow<PagingData<Article>> {
         val isAuth = isAuthenticated.value
         val key = FeedCacheKey(filter, isAuth)
         return feedCache.getOrPut(key) {
