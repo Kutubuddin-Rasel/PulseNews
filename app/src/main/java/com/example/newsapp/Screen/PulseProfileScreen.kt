@@ -1,13 +1,11 @@
 package com.example.newsapp.Screen
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,7 +13,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -34,9 +31,8 @@ import com.example.newsapp.ui.tokens.*
 fun PulseProfileScreen(viewModel: PulseProfileViewModel = hiltViewModel()) {
     val context = LocalContext.current
     val snackbar = LocalPulseSnackbar.current
-    val p by viewModel.profile.collectAsState()
+    val profile by viewModel.profile.collectAsState()
     val user by viewModel.currentUser.collectAsState()
-    val badges = remember(p) { allBadges(p.totalArticlesRead, p.categoryReadCounts) }
 
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
@@ -48,72 +44,132 @@ fun PulseProfileScreen(viewModel: PulseProfileViewModel = hiltViewModel()) {
         }
     }
 
+    val topCategoriesByShare = remember(profile.categoryReadCounts) {
+        val total = profile.categoryReadCounts.values.sum().toFloat().coerceAtLeast(1f)
+        profile.categoryReadCounts
+            .entries
+            .sortedByDescending { it.value }
+            .map { (name, count) ->
+                val display = name.replaceFirstChar { ch ->
+                    if (ch.isLowerCase()) ch.titlecase() else ch.toString()
+                }
+                display to (count / total)
+            }
+    }
+
     NewsBackground(Modifier.fillMaxSize()) {
         Scaffold(containerColor = Color.Transparent) { padding ->
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                modifier = Modifier.fillMaxSize().padding(padding)
-                    .padding(horizontal = NewsSpacing.lg),
-                horizontalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
-                verticalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
-                contentPadding = PaddingValues(top = NewsSpacing.lg, bottom = NewsSpacing.xxl),
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = NewsSpacing.lg)
+                    .padding(top = NewsSpacing.lg, bottom = NewsSpacing.xxl),
             ) {
-                item(span = { GridItemSpan(2) }) {
-                    Column(Modifier.fillMaxWidth()) {
-                        Text("Profile", style = MaterialTheme.typography.displaySmall,
-                            fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onBackground)
-                        Spacer(Modifier.height(NewsSpacing.xs))
-                        Text("READER SINCE JAN 2025", style = MetaMono,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(NewsSpacing.lg))
-                        
-                        AuthCard(user, onSignIn = { viewModel.signIn(context) }, onSignOut = viewModel::signOut)
-                        
-                        Spacer(Modifier.height(NewsSpacing.lg))
-                        StreakCard(current = p.currentStreak, longest = p.longestStreak)
-                        Spacer(Modifier.height(NewsSpacing.sm))
-                    }
-                }
-                item { StatCard("ARTICLES READ", p.totalArticlesRead.toString(), "All time") }
-                item { StatCard("THIS WEEK", "23", "+4 vs last") }
-                item(span = { GridItemSpan(2) }) {
-                    Spacer(Modifier.height(NewsSpacing.md))
-                    Text("Badges", style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onBackground)
-                    Spacer(Modifier.height(NewsSpacing.sm))
-                }
-                items(badges) { b -> BadgeTile(b) }
+                Text(
+                    "Profile",
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Spacer(Modifier.height(NewsSpacing.xs))
+                Text(
+                    "YOUR READING, REFLECTED",
+                    style = MetaMono,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                Spacer(Modifier.height(NewsSpacing.xl))
+                AuthCard(
+                    user = user,
+                    onSignIn = { viewModel.signIn(context) },
+                    onSignOut = viewModel::signOut,
+                )
+
+                Spacer(Modifier.height(NewsSpacing.lg))
+                StreakCard(
+                    current = profile.currentStreak,
+                    longest = profile.longestStreak
+                )
+
+                Spacer(Modifier.height(NewsSpacing.lg))
+                ReadingReflectionCard(
+                    articlesRead = profile.totalArticlesRead,
+                    topCategoriesByShare = topCategoriesByShare,
+                )
             }
         }
     }
 }
 
 @Composable
-private fun AuthCard(user: com.google.firebase.auth.FirebaseUser?, onSignIn: () -> Unit, onSignOut: () -> Unit) {
+private fun AuthCard(
+    user: com.google.firebase.auth.FirebaseUser?,
+    onSignIn: () -> Unit,
+    onSignOut: () -> Unit,
+) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceContainerLowest,
         shape = RoundedCornerShape(NewsRadius.md),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
-        Column(Modifier.padding(NewsSpacing.lg), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            modifier = Modifier.padding(NewsSpacing.lg),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             if (user != null) {
-                Text(text = "Signed in as", style = MaterialTheme.typography.labelLarge)
+                Text(
+                    "SIGNED IN AS",
+                    style = MetaMono,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Spacer(Modifier.height(NewsSpacing.xs))
-                Text(text = user.displayName ?: user.email ?: "Unknown User", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    user.displayName ?: user.email ?: "Unknown User",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
                 Spacer(Modifier.height(NewsSpacing.sm))
-                Text(text = "Saved articles and preferences are synced.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                Text(
+                    "Saved articles and preferences are synced across devices.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
                 Spacer(Modifier.height(NewsSpacing.md))
-                Button(onClick = onSignOut, shape = RoundedCornerShape(NewsRadius.pill)) {
-                    Text("Sign Out")
+                OutlinedButton(
+                    onClick = onSignOut,
+                    shape = RoundedCornerShape(NewsRadius.pill),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                    ),
+                ) {
+                    Text("Sign Out", style = MaterialTheme.typography.labelLarge)
                 }
             } else {
-                Text(text = "Not Signed In", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Not Signed In",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
                 Spacer(Modifier.height(NewsSpacing.sm))
-                Text(text = "Sign in to sync your saved articles across devices.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                Text(
+                    "Sign in to sync your saved articles across devices.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
                 Spacer(Modifier.height(NewsSpacing.md))
-                Button(onClick = onSignIn, shape = RoundedCornerShape(NewsRadius.pill)) {
-                    Text("Sign in with Google")
+                Button(
+                    onClick = onSignIn,
+                    shape = RoundedCornerShape(NewsRadius.pill),
+                ) {
+                    Text("Sign in with Google", style = MaterialTheme.typography.labelLarge)
                 }
             }
         }
@@ -142,59 +198,99 @@ private fun StreakCard(current: Int, longest: Int) {
 }
 
 @Composable
-private fun StatCard(label: String, value: String, sub: String) {
+private fun ReadingReflectionCard(
+    articlesRead: Int,
+    topCategoriesByShare: List<Pair<String, Float>>,
+) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceContainerLowest,
-        shape = RoundedCornerShape(NewsRadius.md),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shape = RoundedCornerShape(NewsRadius.lg),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
-        Column(Modifier.padding(NewsSpacing.lg)) {
-            Text(label, style = MetaMono, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(NewsSpacing.xs))
-            Text(value, style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-            Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.padding(NewsSpacing.xl)) {
+            Text(
+                "ARTICLES READ",
+                style = MetaMono,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(NewsSpacing.sm))
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.spacedBy(NewsSpacing.md),
+            ) {
+                Text(
+                    articlesRead.toString(),
+                    style = MaterialTheme.typography.displayMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    if (articlesRead == 1) "article" else "articles",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 10.dp),
+                )
+            }
+
+            if (topCategoriesByShare.isNotEmpty()) {
+                Spacer(Modifier.height(NewsSpacing.lg))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Spacer(Modifier.height(NewsSpacing.md))
+                Text(
+                    "WHAT YOU READ",
+                    style = MetaMono,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(NewsSpacing.md))
+                topCategoriesByShare.take(5).forEach { (name, share) ->
+                    CategoryShareRow(name, share)
+                    Spacer(Modifier.height(NewsSpacing.sm))
+                }
+            } else {
+                Spacer(Modifier.height(NewsSpacing.md))
+                Text(
+                    "Read a few articles to see your topic mix here.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun BadgeTile(b: BadgeData) {
-    Surface(
+private fun CategoryShareRow(name: String, share: Float) {
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        color = if (b.unlocked) MaterialTheme.colorScheme.surfaceContainerLowest else Color.Transparent,
-        shape = RoundedCornerShape(NewsRadius.md),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.padding(NewsSpacing.md).alpha(if (b.unlocked) 1f else 0.45f)) {
+        Text(
+            text = name,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.width(112.dp),
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainer),
+        ) {
             Box(
-                Modifier.size(36.dp).clip(RoundedCornerShape(NewsRadius.sm))
-                    .background(if (b.unlocked) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
-                    .border(if (b.unlocked) 0.dp else 1.dp,
-                        MaterialTheme.colorScheme.outline, RoundedCornerShape(NewsRadius.sm)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(b.glyph, color = MaterialTheme.colorScheme.onPrimaryContainer)
-            }
-            Spacer(Modifier.height(NewsSpacing.sm))
-            Text(b.name, style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-            Text(b.description, style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                modifier = Modifier
+                    .fillMaxWidth(share.coerceIn(0f, 1f))
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colorScheme.tertiary),
+            )
         }
+        Spacer(Modifier.width(NewsSpacing.md))
+        Text(
+            text = "${(share * 100).toInt()}%",
+            style = MetaMono,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.widthIn(min = 36.dp),
+        )
     }
 }
-
-data class BadgeData(val glyph: String, val name: String, val description: String, val unlocked: Boolean)
-
-private fun allBadges(total: Int, categories: Map<String, Int>): List<BadgeData> = listOf(
-    BadgeData("\u2728", "First Steps", "Read your first article", total >= 1),
-    BadgeData("\uD83D\uDCD6", "Avid Reader", "Read 10 articles", total >= 10),
-    BadgeData("\uD83D\uDCF0", "News Junkie", "Read 50 articles", total >= 50),
-    BadgeData("\uD83C\uDFC6", "Centurion", "Read 100 articles", total >= 100),
-    BadgeData("\uD83D\uDCBB", "Tech Guru", "10 Tech articles", (categories["tech"] ?: 0) >= 10),
-    BadgeData("\u26BD", "Sports Fan", "10 Sports articles", (categories["sports"] ?: 0) >= 10),
-)
-
-private fun Modifier.alpha(a: Float) = this.then(Modifier.graphicsLayer(alpha = a))
