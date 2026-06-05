@@ -17,10 +17,17 @@ import retrofit2.http.Header
 
 interface PulseBackendApi {
     @GET("api/news")
-    suspend fun getNewsFeed(@Query("cursor") cursor: String?, @Query("limit") limit: Int = 20): Response<List<PulseArticleDto>>
+    suspend fun getNewsFeed(
+        @Query("page") page: Int?, 
+        @Query("limit") limit: Int = 20,
+        @Query("category") category: String? = null
+    ): Response<List<PulseArticleDto>>
 
     @GET("api/news/foryou")
-    suspend fun getForYouFeed(@Query("cursor") cursor: String?, @Query("limit") limit: Int = 20): Response<List<PulseArticleDto>>
+    suspend fun getForYouFeed(
+        @Query("page") page: Int?, 
+        @Query("limit") limit: Int = 20
+    ): Response<List<PulseArticleDto>>
 
     @GET("api/news/meta")
     suspend fun getNewsMeta(): Response<PulseMetaDto>
@@ -28,7 +35,7 @@ interface PulseBackendApi {
     @GET("api/news/search")
     suspend fun searchNews(
         @Query("q") query: String,
-        @Query("cursor") cursor: String? = null,
+        @Query("page") page: Int? = null,
         @Query("limit") limit: Int = 20
     ): Response<List<PulseArticleDto>>
 
@@ -58,4 +65,10 @@ interface PulseBackendApi {
         @Header("x-device-id") deviceId: String,
         @Body request: TelemetryBatchRequest
     ): Response<Unit>
+
+    @POST("api/news/{id}/summary")
+    suspend fun getAiSummary(
+        @Path("id") articleId: String,
+        @Body request: com.example.newsapp.data.remote.dto.AiSummaryRequest
+    ): Response<com.example.newsapp.data.remote.dto.AiSummaryResponse>
 }

@@ -1,42 +1,77 @@
 package com.example.newsapp.data.util
 
-import com.example.newsapp.BuildConfig
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.content
+import com.example.newsapp.Api.PulseBackendApi
+import com.example.newsapp.data.remote.dto.AiSummaryRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
+
+sealed class AiSummaryResult {
+    data class Success(val summary: String) : AiSummaryResult()
+    object RateLimitExceeded : AiSummaryResult()
+    data class Error(val message: String) : AiSummaryResult()
+}
 
 @Singleton
-class AiSummarizer @Inject constructor() {
-
-    private val generativeModel by lazy {
-        GenerativeModel(
-            modelName = "gemini-2.5-flash",
-            apiKey = BuildConfig.GEMINI_API_KEY,
-            systemInstruction = content {
-                text("You are an expert news editor. Provide exactly 3 concise bullet points summarizing the following article. Do not include any introductory or concluding text. Your output must strictly be three bullet points, each starting with a bullet character.")
-            }
-        )
-    }
-
-    suspend fun generateTlDr(articleText: String): Result<String> = withContext(Dispatchers.IO) {
-        if (BuildConfig.GEMINI_API_KEY.isBlank()) {
-            return@withContext Result.failure(IllegalStateException("GEMINI_API_KEY is not configured in local.properties"))
-        }
-
+class AiSummarizer @Inject constructor(
+    private val api: PulseBackendApi,
+    @ApplicationContext private val context: Context
+) {
+    suspend fun generateTlDr(articleId: String, articleText: String): AiSummaryResult = withContext(Dispatchers.IO) {
+        val TAG = "AiSummarizer"
         try {
-            // We pass the article text. Gemini handles the rest based on the system instruction.
-            val response = generativeModel.generateContent(articleText)
-            val summary = response.text
-            if (summary.isNullOrBlank()) {
-                Result.failure(Exception("AI returned empty response"))
+            Log.d(TAG, "Requesting AI Summary for articleId: $articleId")
+            val response = api.getAiSummary(articleId, AiSummaryRequest(articleText))
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body != null) {
+                    when (body.error) {
+                        "RATE_LIMIT_EXCEEDED" -> {
+                            Log.w(TAG, "RATE_LIMIT_EXCEEDED for article $articleId")
+                            AiSummaryResult.RateLimitExceeded
+                        }
+                        "GENERATION_FAILED" -> {
+                            val debugFile = File(context.cacheDir, "failed_prompt_$articleId.txt")
+                            try {
+                                debugFile.writeText(articleText)
+                                Log.e(TAG, "GENERATION_FAILED for article $articleId. Saved the exact text payload (${articleText.length} chars) to: ${debugFile.absolutePath} for debugging.")
+                            } catch (e: Exception) {
+                                Log.e(TAG, "GENERATION_FAILED for article $articleId. Failed to save debug file.", e)
+                            }
+                            AiSummaryResult.Error("GENERATION_FAILED")
+                        }
+                        null -> {
+                            val summary = body.summary
+                            if (summary.isNullOrBlank()) {
+                                Log.e(TAG, "Success response but summary is null/blank for article $articleId")
+                                AiSummaryResult.Error("Backend returned empty summary")
+                            } else {
+                                Log.d(TAG, "Successfully generated summary for article $articleId")
+                                AiSummaryResult.Success(summary.trim())
+                            }
+                        }
+                        else -> {
+                            Log.e(TAG, "Unknown backend error for article $articleId: ${body.error}")
+                            AiSummaryResult.Error("Backend error: ${body.error}")
+                        }
+                    }
+                } else {
+                    Log.e(TAG, "Response successful but body is null for article $articleId")
+                    AiSummaryResult.Error("Empty response body")
+                }
             } else {
-                Result.success(summary.trim())
+                val errorBodyStr = response.errorBody()?.string()
+                Log.e(TAG, "HTTP Error ${response.code()} for article $articleId. Body: $errorBodyStr")
+                AiSummaryResult.Error("HTTP Error ${response.code()}")
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Log.e(TAG, "Exception while generating summary for article $articleId", e)
+            AiSummaryResult.Error(e.message ?: "Unknown network error")
         }
     }
 }

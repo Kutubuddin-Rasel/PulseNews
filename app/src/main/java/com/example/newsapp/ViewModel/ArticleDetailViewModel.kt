@@ -75,7 +75,7 @@ class ArticleDetailViewModel @Inject constructor(
         .distinctUntilChangedBy { it.url }
         .flatMapLatest { currentArticle ->
             val keywords = extractCoreKeywords(currentArticle.title)
-            newsRepository.getFeed(categoryKey = CategoryKey.FOR_YOU, keyword = keywords)
+            newsRepository.searchNews(query = keywords)
         }.cachedIn(viewModelScope)
 
     companion object {

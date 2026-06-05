@@ -65,7 +65,7 @@ fun HomeScreen(navController: NavController) {
         PrivacyConsentDialog(onAccept = { vm.setTelemetryConsent(true) }, onDecline = { vm.setTelemetryConsent(false) })
     }
 
-    val canRefresh = uiState.filter.activeQuery.isEmpty() && uiState.filter.selectedSource == null
+    val canRefresh = uiState.filter.selectedSource == null
 
     NewsBackground(Modifier.fillMaxSize()) {
         Scaffold(
@@ -76,7 +76,7 @@ fun HomeScreen(navController: NavController) {
                     categories = categories,
                     lastUpdated = lastUpdated,
                     onCategoryClick = vm::setCategory,
-                    onSearchClick = { showFilterSheet = true },
+                    onSearchClick = { navController.navigate(com.example.newsapp.Routes.search) },
                     onRefresh = {
                         if (canRefresh) {
                             vm.fetchNewsMeta()
@@ -125,7 +125,6 @@ fun HomeScreen(navController: NavController) {
                         actionText = "Reset filters",
                         onAction = {
                             vm.setCategory(CategoryKey.FOR_YOU); vm.setSource(null)
-                            vm.updateQueryInput(""); vm.submitSearch()
                         },
                     )
                     else -> LazyColumn(
@@ -151,7 +150,7 @@ fun HomeScreen(navController: NavController) {
                                         navController.navigateToArticleDetail(article.url ?: "")
                                     },
                                     onSave = { 
-                                        if (savedArticles.contains(article.url)) {
+                                        if (vm.savedArticles.value.contains(article.url)) {
                                             vm.deleteArticle(article)
                                         } else {
                                             vm.saveArticle(article)
@@ -188,13 +187,9 @@ fun HomeScreen(navController: NavController) {
 
             if (showFilterSheet) {
                 val sources by vm.availableSources.collectAsState()
-                FeedFilterBottomSheet(
-                    query = uiState.filter.queryInput,
+                SourceFilterBottomSheet(
                     selectedSource = uiState.filter.selectedSource,
                     availableSources = sources,
-                    trendingTopics = trendingTopics,
-                    isSearching = articles.loadState.refresh is androidx.paging.LoadState.Loading,
-                    onQueryChange = vm::updateQueryInput,
                     onSourceChange = vm::setSource,
                     onDismissRequest = { showFilterSheet = false },
                 )

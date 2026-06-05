@@ -13,34 +13,37 @@ class SearchPagingSource(
     private val api: PulseBackendApi,
     private val connectivityMonitor: ConnectivityMonitor,
     private val query: String
-) : PagingSource<String, Article>() {
+) : PagingSource<Int, Article>() {
 
-    override fun getRefreshKey(state: PagingState<String, Article>): String? {
-        return null // Search results typically don't need mid-list refresh anchoring
+    override fun getRefreshKey(state: PagingState<Int, Article>): Int? {
+        return state.anchorPosition?.let { anchorPosition ->
+            state.closestPageToPosition(anchorPosition)?.prevKey?.plus(1)
+                ?: state.closestPageToPosition(anchorPosition)?.nextKey?.minus(1)
+        }
     }
 
-    override suspend fun load(params: LoadParams<String>): LoadResult<String, Article> {
+    override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Article> {
         if (!connectivityMonitor.isOnline()) {
             return LoadResult.Error(IOException("You need an active internet connection to search the global news database."))
         }
 
         return try {
-            val cursor = params.key
-            val response = api.searchNews(query = query, cursor = cursor, limit = params.loadSize)
+            val page = params.key ?: 1
+            val response = api.searchNews(query = query, page = page, limit = params.loadSize)
 
             if (response.isSuccessful) {
                 val dtos = response.body() ?: emptyList()
                 val articles = dtos.mapNotNull { it.toDomainOrNull() }
                 
-                val nextKey = if (dtos.isEmpty()) {
+                val nextKey = if (dtos.isEmpty() || dtos.size < params.loadSize) {
                     null
                 } else {
-                    dtos.last().id
+                    page + 1
                 }
 
                 LoadResult.Page(
                     data = articles,
-                    prevKey = null, // Backend cursor pagination is generally forward-only
+                    prevKey = if (page == 1) null else page - 1,
                     nextKey = nextKey
                 )
             } else {

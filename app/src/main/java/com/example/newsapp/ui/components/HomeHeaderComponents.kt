@@ -183,13 +183,9 @@ fun CategoryChip(text: String, selected: Boolean, onClick: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun FeedFilterBottomSheet(
-    query: String,
+fun SourceFilterBottomSheet(
     selectedSource: String?,
     availableSources: List<String>,
-    trendingTopics: List<com.example.newsapp.domain.model.TrendingTopic>,
-    isSearching: Boolean,
-    onQueryChange: (String) -> Unit,
     onSourceChange: (String?) -> Unit,
     onDismissRequest: () -> Unit,
 ) {
@@ -201,20 +197,6 @@ fun FeedFilterBottomSheet(
         shape = RoundedCornerShape(topStart = NewsRadius.lg, topEnd = NewsRadius.lg),
     ) {
         Column(Modifier.fillMaxWidth().padding(horizontal = NewsSpacing.lg, vertical = NewsSpacing.md)) {
-            if (trendingTopics.isNotEmpty()) {
-                Text("TRENDING NOW", style = MetaMono, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(NewsSpacing.sm))
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
-                    verticalArrangement = Arrangement.spacedBy(NewsSpacing.sm)
-                ) {
-                    trendingTopics.forEach { topic ->
-                        CategoryChip("#${topic.tag}", false) { onQueryChange(topic.tag) }
-                    }
-                }
-                Spacer(Modifier.height(NewsSpacing.xl))
-            }
-
             Text("SOURCE", style = MetaMono, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(NewsSpacing.sm))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
@@ -224,29 +206,6 @@ fun FeedFilterBottomSheet(
                     CategoryChip(src, selectedSource == src) { onSourceChange(src) }
                 }
             }
-
-            Spacer(Modifier.height(NewsSpacing.xl))
-            Text("KEYWORD", style = MetaMono, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(NewsSpacing.sm))
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = { Text("e.g. \"semiconductors\"") },
-                shape = RoundedCornerShape(NewsRadius.md),
-                trailingIcon = {
-                    if (isSearching) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    } else {
-                        Icon(Icons.Filled.Search, contentDescription = "Search icon")
-                    }
-                },
-            )
             Spacer(Modifier.height(NewsSpacing.xl))
         }
     }

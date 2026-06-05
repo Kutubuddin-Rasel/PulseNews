@@ -14,7 +14,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -98,19 +101,54 @@ fun ArticleDetailScreen(navController: NavController) {
                 }
             },
             bottomBar = {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-                    tonalElevation = 0.dp,
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                                    MaterialTheme.colorScheme.surface
+                                )
+                            )
+                        )
+                        .padding(top = NewsSpacing.xl)
+                        .padding(horizontal = NewsSpacing.lg)
+                        .padding(bottom = NewsSpacing.lg)
+                        .navigationBarsPadding()
                 ) {
                     Button(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             navController.navigateToWebPage(item.url)
                         },
-                        modifier = Modifier.fillMaxWidth().padding(NewsSpacing.lg),
-                        shape = RoundedCornerShape(NewsRadius.md),
-                    ) { Text("Read full article \u2192", style = MaterialTheme.typography.labelLarge) }
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        shape = RoundedCornerShape(NewsRadius.pill),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.onSurface,
+                            contentColor = MaterialTheme.colorScheme.surface
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(
+                            defaultElevation = 4.dp,
+                            pressedElevation = 0.dp
+                        )
+                    ) {
+                        Text(
+                            text = "Read full article",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 16.sp
+                            )
+                        )
+                        Spacer(Modifier.width(NewsSpacing.sm))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             },
             containerColor = Color.Transparent,

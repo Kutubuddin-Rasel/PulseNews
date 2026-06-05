@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -53,8 +54,15 @@ fun AiSummaryCard(aiState: AiState, modifier: Modifier = Modifier) {
                             ),
                             color = MaterialTheme.colorScheme.onSurface,
                         )
+                        is AiState.SuccessFallback -> Text(
+                            state.summary,
+                            style = MaterialTheme.typography.headlineSmall.copy(
+                                fontSize = 17.sp, lineHeight = 24.sp, fontWeight = FontWeight.Normal
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
                         is AiState.Error -> Text(
-                            "We couldn't generate a summary for this article. Please read the full text below.",
+                            state.message, // Uses the user-friendly message provided by the ViewModel
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -69,6 +77,7 @@ fun AiSummaryCard(aiState: AiState, modifier: Modifier = Modifier) {
 private fun AiHeader(state: AiState) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         val isError = state is AiState.Error
+        val isFallback = state is AiState.SuccessFallback
         Box(
             Modifier.size(32.dp).clip(RoundedCornerShape(NewsRadius.sm))
                 .background(if (isError) MaterialTheme.colorScheme.errorContainer else Color.Transparent),
@@ -78,18 +87,18 @@ private fun AiHeader(state: AiState) {
                 Box(Modifier.matchParentSize().background(AccentGradient, RoundedCornerShape(NewsRadius.sm)))
             }
             Icon(
-                imageVector = if (isError) Icons.Default.ErrorOutline else Icons.Default.AutoAwesome,
-                contentDescription = if (isError) "Error" else "AI Generated",
+                imageVector = if (isError) Icons.Default.ErrorOutline else if (isFallback) Icons.Default.FormatListBulleted else Icons.Default.AutoAwesome,
+                contentDescription = if (isError) "Error" else if (isFallback) "Key Excerpts" else "AI Generated",
                 tint = if (isError) MaterialTheme.colorScheme.onErrorContainer else Color.White,
                 modifier = Modifier.size(18.dp),
             )
         }
         Spacer(Modifier.width(NewsSpacing.md))
         Text(
-            if (state is AiState.Error) "Couldn\u2019t generate summary" else "Gemini TL;DR",
+            if (state is AiState.Error) "Couldn\u2019t generate summary" else if (isFallback) "Key Excerpts \uD83D\uDCCC" else "Gemini TL;DR",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
-            color = if (state is AiState.Error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+            color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
         )
         Spacer(Modifier.weight(1f))
         Text(
@@ -97,6 +106,7 @@ private fun AiHeader(state: AiState) {
                 is AiState.Loading -> "reading\u2026"
                 is AiState.Error   -> "retry available"
                 is AiState.Success -> "AI"
+                is AiState.SuccessFallback -> "LOCAL"
                 else -> ""
             },
             style = MetaMono,

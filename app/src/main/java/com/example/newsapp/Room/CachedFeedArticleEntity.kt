@@ -26,7 +26,7 @@ data class CachedFeedArticleEntity(
     val urlToImage: String?,
     val sortOrder: Int,
     val fetchedAt: Long,
-    val relevanceScore: Float = 0f,
+    val gravity_score: Float? = null,
     @androidx.room.ColumnInfo(name = "verification_status") val verificationStatus: String = "UNVERIFIED",
     @androidx.room.ColumnInfo(name = "signature_protocol") val signatureProtocol: String? = null,
     @androidx.room.ColumnInfo(name = "trusted_signer") val trustedSigner: String? = null,

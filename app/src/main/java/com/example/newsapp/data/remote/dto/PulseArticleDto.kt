@@ -12,6 +12,15 @@ data class BookmarkRequest(
     val articleId: String
 )
 
+data class AiSummaryRequest(
+    val articleText: String
+)
+
+data class AiSummaryResponse(
+    val summary: String?,
+    val error: String?
+)
+
 data class PulseArticleDto(
     val id: String?,
     val title: String?,
@@ -23,5 +32,6 @@ data class PulseArticleDto(
     val provenance: ProvenanceDto? = null,
     val regionCode: String? = null,
     val sourceTier: Int? = null,
+    val gravity_score: Float? = null,
     val taxonomy: ArticleTaxonomyDto? = null
 )

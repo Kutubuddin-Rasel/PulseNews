@@ -83,6 +83,7 @@ fun PulseArticleDto.toDomainOrNull(): Article? {
         },
         regionCode = regionCode,
         sourceTier = sourceTier,
+        gravity_score = gravity_score,
         taxonomy = taxonomy?.let {
             ArticleTaxonomy(
                 categories = it.categories ?: emptyList(),
@@ -95,7 +96,7 @@ fun PulseArticleDto.toDomainOrNull(): Article? {
     )
 }
 
-fun Article.toCacheEntity(feedKey: String, sortOrder: Int, fetchedAt: Long, relevanceScore: Float = 0f): CachedFeedArticleEntity {
+fun Article.toCacheEntity(feedKey: String, sortOrder: Int, fetchedAt: Long): CachedFeedArticleEntity {
     return CachedFeedArticleEntity(
         feedKey = feedKey,
         backendId = backendId,
@@ -120,7 +121,7 @@ fun Article.toCacheEntity(feedKey: String, sortOrder: Int, fetchedAt: Long, rele
         taxonomyMlConfidence = taxonomy?.mlConfidence,
         taxonomyId = taxonomy?.id,
         taxonomyArticleId = taxonomy?.articleId,
-        relevanceScore = relevanceScore
+        gravity_score = gravity_score
     )
 }
 
@@ -142,6 +143,7 @@ fun CachedFeedArticleEntity.toDomainArticle(): Article {
         ),
         regionCode = regionCode,
         sourceTier = sourceTier,
+        gravity_score = gravity_score,
         taxonomy = if (taxonomyCategories != null || taxonomyTags != null) {
             ArticleTaxonomy(
                 categories = taxonomyCategories ?: emptyList(),

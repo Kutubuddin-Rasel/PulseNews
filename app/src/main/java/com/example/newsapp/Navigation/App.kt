@@ -102,6 +102,7 @@ fun App() {
             modifier = Modifier.padding(bottom = if (showBottomBar) paddingValues.calculateBottomPadding() else 0.dp)
         ) {
             composable(Routes.home) { HomeScreen(navController) }
+            composable(Routes.search) { com.example.newsapp.Screen.SearchScreen(navController) }
             composable(Routes.saved) { SavedArticle(navController) }
             composable(Routes.profile) { PulseProfileScreen() }
             composable(Routes.settings) {

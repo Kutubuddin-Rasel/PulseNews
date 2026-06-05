@@ -50,14 +50,6 @@ android {
                 ?: ""
             ).trim()
         buildConfigField("String", "WEB_CLIENT_ID", "\"$webClientId\"")
-        
-        val geminiApiKey = (
-            providers.gradleProperty("GEMINI_API_KEY").orNull
-                ?: localProperties.getProperty("GEMINI_API_KEY")
-                ?: System.getenv("GEMINI_API_KEY")
-                ?: ""
-            ).trim()
-        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
     }
 
     buildTypes {
@@ -177,7 +169,6 @@ dependencies {
     implementation(libs.googleid)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.jsoup)
-    implementation(libs.google.ai.client.generativeai)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.session)
 

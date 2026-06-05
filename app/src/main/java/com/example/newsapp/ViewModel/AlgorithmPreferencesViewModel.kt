@@ -11,10 +11,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 import android.content.Context
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
-import com.example.newsapp.worker.ScoreRecalculationWorker
-import dagger.hilt.android.qualifiers.ApplicationContext
+
 
 data class AlgorithmWeightsUiState(
     val tech: Float = 0.2f,
@@ -27,8 +24,7 @@ data class AlgorithmWeightsUiState(
 
 @HiltViewModel
 class AlgorithmPreferencesViewModel @Inject constructor(
-    private val repository: AlgorithmPreferencesRepository,
-    @ApplicationContext private val context: Context
+    private val repository: AlgorithmPreferencesRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AlgorithmWeightsUiState())
@@ -64,7 +60,7 @@ class AlgorithmPreferencesViewModel @Inject constructor(
     }
 
     fun saveAndRecalculate() {
-        val workRequest = OneTimeWorkRequestBuilder<ScoreRecalculationWorker>().build()
-        WorkManager.getInstance(context).enqueue(workRequest)
+        // Pending decision: this screen is obsolete as backend handles sorting.
+        // For now, it just saves the preferences to the repository.
     }
 }

@@ -28,7 +28,7 @@ class TopHeadlinesViewModel @Inject constructor(
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val state: kotlinx.coroutines.flow.Flow<androidx.paging.PagingData<Article>> = _category
         .flatMapLatest { category ->
-            newsRepository.getFeed(categoryKey = CategoryKey.FOR_YOU, keyword = category)
+            newsRepository.getFeed(categoryKey = CategoryKey(category))
         }
         .cachedIn(viewModelScope)
 

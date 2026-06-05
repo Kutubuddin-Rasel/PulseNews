@@ -22,7 +22,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.debounce
 import javax.inject.Inject
 import com.example.newsapp.data.repository.PrivacyPreferencesRepository
-import com.example.newsapp.data.repository.AlgorithmPreferencesRepository
 import com.example.newsapp.data.util.AuthManager
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.SharingStarted
@@ -38,8 +37,6 @@ enum class FeedMode { FOR_YOU, TRENDING }
 
 data class FilterUiState(
     val categoryKey: CategoryKey = CategoryKey.FOR_YOU,
-    val queryInput: String = "",
-    val activeQuery: String = "",
     val selectedSource: String? = null
 )
 
@@ -54,7 +51,6 @@ data class HomeUiState(
 class HomeViewModel @Inject constructor(
     private val newsRepository: NewsRepository,
     private val savedArticleRepository: SavedArticleRepository,
-    private val algoPrefsRepo: AlgorithmPreferencesRepository,
     private val privacyPrefsRepo: PrivacyPreferencesRepository,
     private val localEngagementTracker: com.example.newsapp.data.util.LocalEngagementTracker,
     private val savedStateHandle: SavedStateHandle,
@@ -67,8 +63,6 @@ class HomeViewModel @Inject constructor(
         HomeUiState(
             filter = FilterUiState(
                 categoryKey = CategoryKey(savedStateHandle.get<String>(KEY_CATEGORY_KEY) ?: "for_you"),
-                queryInput = savedStateHandle[KEY_QUERY_INPUT] ?: "",
-                activeQuery = savedStateHandle[KEY_ACTIVE_QUERY] ?: "",
                 selectedSource = savedStateHandle[KEY_SELECTED_SOURCE]
             )
         )
@@ -113,14 +107,8 @@ class HomeViewModel @Inject constructor(
         .map { it != null }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    private val searchQueryFlow = MutableStateFlow(savedStateHandle[KEY_QUERY_INPUT] ?: "")
-
     init {
-        viewModelScope.launch {
-            algoPrefsRepo.preferences.collectLatest { prefs ->
-                algoPrefs = prefs
-            }
-        }
+
         viewModelScope.launch {
             privacyPrefsRepo.telemetryConsent.collectLatest { consent ->
                 _telemetryConsent.value = consent
@@ -128,30 +116,6 @@ class HomeViewModel @Inject constructor(
         }
         
         fetchNewsMeta()
-        
-        viewModelScope.launch {
-            try {
-                val response = newsRepository.getTrendingTopics()
-                if (response.isSuccess) {
-                    _trendingTopics.value = response.getOrNull() ?: emptyList()
-                }
-            } catch (e: Exception) {
-                // Ignore failure for trending topics, it's non-critical
-            }
-        }
-
-        viewModelScope.launch {
-            searchQueryFlow
-                .debounce(300)
-                .distinctUntilChanged()
-                .collectLatest { query ->
-                    val current = _uiState.value.filter
-                    val newActiveQuery = query.trim()
-                    if (current.activeQuery != newActiveQuery) {
-                        updateFilter(current.copy(activeQuery = newActiveQuery))
-                    }
-                }
-        }
     }
 
     fun setTelemetryConsent(granted: Boolean) {
@@ -187,7 +151,6 @@ class HomeViewModel @Inject constructor(
             } else {
                 newsRepository.getFeed(
                     categoryKey = key.filter.categoryKey,
-                    keyword = key.filter.activeQuery.takeIf { it.isNotBlank() },
                     source = key.filter.selectedSource
                 ).cachedIn(viewModelScope)
             }
@@ -211,28 +174,16 @@ class HomeViewModel @Inject constructor(
         updateFilter(current.copy(categoryKey = categoryKey))
     }
 
-    fun updateQueryInput(text: String) {
-        searchQueryFlow.value = text
-        updateFilter(_uiState.value.filter.copy(queryInput = text))
-    }
-
-    fun submitSearch() {
-        val current = _uiState.value.filter
-        updateFilter(current.copy(activeQuery = current.queryInput.trim()))
-    }
-    
     fun setSource(source: String?) {
         val current = _uiState.value.filter
         if (current.selectedSource == source) return
         updateFilter(current.copy(selectedSource = source))
     }
 
-    private var algoPrefs: Map<String, Float>? = null
+
 
     private fun updateFilter(filter: FilterUiState) {
         savedStateHandle[KEY_CATEGORY_KEY] = filter.categoryKey.value
-        savedStateHandle[KEY_QUERY_INPUT] = filter.queryInput
-        savedStateHandle[KEY_ACTIVE_QUERY] = filter.activeQuery
         savedStateHandle[KEY_SELECTED_SOURCE] = filter.selectedSource
         _uiState.value = _uiState.value.copy(filter = filter)
     }
@@ -261,8 +212,6 @@ class HomeViewModel @Inject constructor(
 
     companion object {
         private const val KEY_CATEGORY_KEY = "home_category_key"
-        private const val KEY_QUERY_INPUT = "home_query_input"
-        private const val KEY_ACTIVE_QUERY = "home_active_query"
         private const val KEY_SELECTED_SOURCE = "home_selected_source"
     }
 }

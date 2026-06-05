@@ -2,6 +2,7 @@ package com.example.newsapp
 
 object Routes {
     const val home = "home"
+    const val search = "search"
     const val saved = "saved"
     const val settings = "settings"
     const val notificationPreferences = "notificationPreferences"

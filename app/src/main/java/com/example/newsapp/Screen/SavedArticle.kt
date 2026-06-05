@@ -66,13 +66,14 @@ fun SavedArticle(navController: NavController) {
                     )
                     is UiState.Success -> LazyColumn(
                         Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(vertical = NewsSpacing.sm),
-                        verticalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
+                        contentPadding = PaddingValues(vertical = NewsSpacing.lg),
+                        verticalArrangement = Arrangement.spacedBy(NewsSpacing.lg),
                     ) {
                         items(items = s.data, key = { it.url }) { article ->
                             ArticleCard(
                                 article = article,
                                 variant = ArticleCardVariant.Standard,
+                                modifier = Modifier.padding(horizontal = NewsSpacing.lg),
                                 onClick = { navController.navigateToArticleDetail(article.url) },
                                 isSaved = true,
                                 onSave = { vm.delete(article) },

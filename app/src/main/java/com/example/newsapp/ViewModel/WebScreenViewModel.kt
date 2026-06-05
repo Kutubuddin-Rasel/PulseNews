@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import android.util.Log
 
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flow
@@ -39,6 +40,7 @@ sealed class AiState {
     object Idle : AiState()
     object Loading : AiState()
     data class Success(val summary: String) : AiState()
+    data class SuccessFallback(val summary: String) : AiState()
     data class Error(val message: String) : AiState()
 }
 
@@ -146,11 +148,31 @@ class WebScreenViewModel @Inject constructor(
                         .joinToString("\n\n") { it.content }
                     val truncatedText = fullText.split("\\s+".toRegex()).take(1500).joinToString(" ")
                     
-                    val result = aiSummarizer.generateTlDr(truncatedText)
-                    result.onSuccess { summary ->
-                        _aiSummaryState.value = AiState.Success(summary)
-                    }.onFailure { error ->
-                        _aiSummaryState.value = AiState.Error(error.localizedMessage ?: "Failed to generate summary")
+                    val backendId = this@WebScreenViewModel.article.value?.backendId
+                    if (backendId.isNullOrEmpty()) {
+                        _aiSummaryState.value = AiState.Error("Article ID not found.")
+                        return@collect
+                    }
+                    
+                    val result = aiSummarizer.generateTlDr(backendId, truncatedText)
+                    when (result) {
+                        is com.example.newsapp.data.util.AiSummaryResult.Success -> {
+                            Log.d("WebScreenVM", "AI Summary Success for $backendId")
+                            _aiSummaryState.value = AiState.Success(result.summary)
+                        }
+                        is com.example.newsapp.data.util.AiSummaryResult.RateLimitExceeded -> {
+                            Log.w("WebScreenVM", "AI Summary RateLimited for $backendId. Triggering Extractive NLP Fallback.")
+                            val fallbackSummary = com.example.newsapp.data.util.ExtractiveSummarizer.extractSummary(truncatedText)
+                            _aiSummaryState.value = AiState.SuccessFallback(fallbackSummary)
+                        }
+                        is com.example.newsapp.data.util.AiSummaryResult.Error -> {
+                            Log.e("WebScreenVM", "AI Summary Error for $backendId: ${result.message}")
+                            if (result.message == "GENERATION_FAILED") {
+                                _aiSummaryState.value = AiState.Error("Unable to generate an AI summary for this article.")
+                            } else {
+                                _aiSummaryState.value = AiState.Error(result.message)
+                            }
+                        }
                     }
                 }
             }

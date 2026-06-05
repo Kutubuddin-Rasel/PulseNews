@@ -30,6 +30,7 @@ data class Article(
     val provenance: com.example.newsapp.domain.model.Provenance? = null,
     val regionCode: String? = null,
     val sourceTier: Int? = null,
+    val gravity_score: Float? = null,
     @androidx.room.Embedded(prefix = "taxonomy_")
     val taxonomy: ArticleTaxonomy? = null
 )

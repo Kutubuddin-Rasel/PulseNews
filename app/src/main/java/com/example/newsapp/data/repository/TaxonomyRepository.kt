@@ -22,6 +22,7 @@ class TaxonomyRepository @Inject constructor(
     companion object {
         val KEY_TAXONOMY_JSON = stringPreferencesKey("taxonomy_json")
         val KEY_TAXONOMY_VERSION = stringPreferencesKey("taxonomy_version")
+        val KEY_TAXONOMY_LAST_FETCHED = androidx.datastore.preferences.core.longPreferencesKey("taxonomy_last_fetched")
 
         // The Day 0 Fallback dictionary
         private val FALLBACK_DICTIONARY = mapOf(
@@ -62,11 +63,16 @@ class TaxonomyRepository @Inject constructor(
         return dataStore.data.map { it[KEY_TAXONOMY_VERSION] ?: "0" }.firstOrNull() ?: "0"
     }
 
-    suspend fun saveTaxonomy(version: String, categories: Map<String, List<String>>) {
+    suspend fun getLastFetchedTime(): Long {
+        return dataStore.data.map { it[KEY_TAXONOMY_LAST_FETCHED] ?: 0L }.firstOrNull() ?: 0L
+    }
+
+    suspend fun saveTaxonomy(version: String, categories: Map<String, List<String>>, timestamp: Long) {
         val jsonString = gson.toJson(categories)
         dataStore.edit { prefs ->
             prefs[KEY_TAXONOMY_VERSION] = version
             prefs[KEY_TAXONOMY_JSON] = jsonString
+            prefs[KEY_TAXONOMY_LAST_FETCHED] = timestamp
         }
     }
 }

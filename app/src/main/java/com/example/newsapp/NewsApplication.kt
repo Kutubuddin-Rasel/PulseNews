@@ -44,19 +44,18 @@ class NewsApplication: Application(), Configuration.Provider {
             syncRequest
         )
 
-        // Queue the taxonomy sync worker (Hybrid ML Dictionary)
+        // Queue the taxonomy sync worker (App Launch Check)
         val taxonomyConstraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.UNMETERED)
-            .setRequiresCharging(true)
+            .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
 
-        val taxonomySyncRequest = PeriodicWorkRequestBuilder<com.example.newsapp.worker.TaxonomySyncWorker>(
-            3, TimeUnit.DAYS
-        ).setConstraints(taxonomyConstraints).build()
+        val taxonomySyncRequest = androidx.work.OneTimeWorkRequestBuilder<com.example.newsapp.worker.TaxonomySyncWorker>()
+            .setConstraints(taxonomyConstraints)
+            .build()
 
-        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-            "TaxonomySyncWork",
-            ExistingPeriodicWorkPolicy.KEEP,
+        WorkManager.getInstance(this).enqueueUniqueWork(
+            "TaxonomySyncWork_Launch",
+            androidx.work.ExistingWorkPolicy.KEEP,
             taxonomySyncRequest
         )
 

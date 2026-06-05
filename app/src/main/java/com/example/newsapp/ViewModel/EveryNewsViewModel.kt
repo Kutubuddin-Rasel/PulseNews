@@ -39,7 +39,7 @@ class EveryNewsViewModel @Inject constructor(
         .debounce(300)
         .distinctUntilChanged()
         .flatMapLatest { query ->
-            newsRepository.getFeed(categoryKey = CategoryKey.FOR_YOU, keyword = query.topic)
+            newsRepository.searchNews(query = query.topic)
         }
         .cachedIn(viewModelScope)
 

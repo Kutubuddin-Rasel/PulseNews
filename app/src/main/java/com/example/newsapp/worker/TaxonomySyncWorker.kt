@@ -19,6 +19,13 @@ class TaxonomySyncWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         return try {
+            val lastFetched = taxonomyRepository.getLastFetchedTime()
+            val now = System.currentTimeMillis()
+            val ttl = 24 * 60 * 60 * 1000L
+            if (now - lastFetched < ttl) {
+                return Result.success() // 24-Hour TTL hasn't expired
+            }
+
             val response = api.getTaxonomy()
             if (response.isSuccessful) {
                 val taxonomyDto = response.body()
@@ -27,7 +34,7 @@ class TaxonomySyncWorker @AssistedInject constructor(
                     
                     // Simple string comparison for version, or always overwrite if different
                     if (taxonomyDto.version != currentVersion) {
-                        taxonomyRepository.saveTaxonomy(taxonomyDto.version, taxonomyDto.categories)
+                        taxonomyRepository.saveTaxonomy(taxonomyDto.version, taxonomyDto.categories, now)
                     }
                 }
                 Result.success()
