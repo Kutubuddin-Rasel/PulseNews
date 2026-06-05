@@ -37,6 +37,8 @@ import com.example.newsapp.navigateToArticleDetail
 import com.example.newsapp.navigateToWebPage
 import com.example.newsapp.ui.components.*
 import com.example.newsapp.ui.theme.MetaMono
+import com.example.newsapp.ui.theme.ReaderBody
+import com.example.newsapp.ui.theme.ReaderLead
 import com.example.newsapp.ui.tokens.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -185,9 +187,11 @@ fun ArticleDetailScreen(navController: NavController) {
 
                 if (!item.description.isNullOrBlank()) {
                     Spacer(Modifier.height(NewsSpacing.md))
-                    Text(item.description!!, style = MaterialTheme.typography.headlineSmall.copy(
-                        fontWeight = FontWeight.Normal, fontSize = 18.sp, lineHeight = 26.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = item.description!!,
+                        style = ReaderLead,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
 
                 Spacer(Modifier.height(NewsSpacing.lg))
@@ -195,8 +199,11 @@ fun ArticleDetailScreen(navController: NavController) {
 
                 if (!item.content.isNullOrBlank()) {
                     Spacer(Modifier.height(NewsSpacing.lg))
-                    Text(item.content!!, style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface)
+                    Text(
+                        text = item.content!!,
+                        style = ReaderBody,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 }
 
                 val related = vm.relatedPerspectives.collectAsLazyPagingItems()
