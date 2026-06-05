@@ -7,6 +7,7 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.example.newsapp.data.util.AppTelemetry
 import com.example.newsapp.decodeNavUrl
+import com.example.newsapp.domain.model.CategoryKey
 import com.example.newsapp.domain.model.UiEvent
 import com.example.newsapp.domain.repository.NewsRepository
 import com.example.newsapp.domain.repository.SavedArticleRepository
@@ -74,13 +75,18 @@ class ArticleDetailViewModel @Inject constructor(
         .distinctUntilChangedBy { it.url }
         .flatMapLatest { currentArticle ->
             val keywords = extractCoreKeywords(currentArticle.title)
-            newsRepository.getFeed(categoryId = 1, keyword = keywords)
+            newsRepository.getFeed(categoryKey = CategoryKey.FOR_YOU, keyword = keywords)
         }.cachedIn(viewModelScope)
 
+    companion object {
+        private val STOP_WORDS = setOf("the", "and", "is", "in", "it", "to", "of", "for", "on", "with", "as", "by", "at", "an", "be", "this", "that")
+        private val CLEANUP_REGEX = Regex("[^a-z0-9\\s]")
+        private val WHITESPACE_REGEX = "\\s+".toRegex()
+    }
+
     private fun extractCoreKeywords(title: String): String {
-        val stopWords = setOf("the", "and", "is", "in", "it", "to", "of", "for", "on", "with", "as", "by", "at", "an", "be", "this", "that")
-        val words = title.lowercase().replace(Regex("[^a-z0-9\\s]"), "").split("\\s+".toRegex())
-        val significantWords = words.filter { it.length > 3 && it !in stopWords }
+        val words = title.lowercase().replace(CLEANUP_REGEX, "").split(WHITESPACE_REGEX)
+        val significantWords = words.filter { it.length > 3 && it !in STOP_WORDS }
         return significantWords.take(3).joinToString(" ").ifEmpty { "politics" } // fallback
     }
 
@@ -95,6 +101,7 @@ class ArticleDetailViewModel @Inject constructor(
     }
 
     fun toggleSaved() {
+        if (_isSavedMutable.value == null) return
         viewModelScope.launch {
             val item = article.value
             if (item == null) {
@@ -115,6 +122,7 @@ class ArticleDetailViewModel @Inject constructor(
     }
 
     fun saveOnly() {
+        if (_isSavedMutable.value == null) return
         viewModelScope.launch {
             val item = article.value
             if (item == null) {

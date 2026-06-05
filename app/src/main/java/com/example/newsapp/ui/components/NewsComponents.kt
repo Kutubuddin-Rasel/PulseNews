@@ -29,10 +29,15 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.example.newsapp.domain.model.VerificationStatus
 import com.example.newsapp.module.Article
@@ -98,7 +103,7 @@ fun ArticleCard(
             }
             Column(Modifier.padding(NewsSpacing.lg)) {
                 if (variant != ArticleCardVariant.Compact) {
-                    AsyncImage(
+                    SubcomposeAsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
                             .data(article.urlToImage).crossfade(true).build(),
                         contentDescription = "${article.title} thumbnail",
@@ -107,7 +112,28 @@ fun ArticleCard(
                             .fillMaxWidth()
                             .height(if (variant == ArticleCardVariant.Featured) NewsImage.featuredHeight else NewsImage.heroHeight)
                             .clip(RoundedCornerShape(NewsRadius.md))
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                        error = {
+                            Box {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .graphicsLayer { alpha = 0.1f }
+                                        .background(AccentGradient)
+                                )
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Newspaper,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                }
+                            }
+                        }
                     )
                     Spacer(Modifier.height(NewsSpacing.md))
                 }
@@ -158,7 +184,21 @@ fun ArticleCard(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        CategoryPill(article.taxonomy?.firstOrNull() ?: "")
+                        val tagsToDisplay = article.taxonomy?.tags?.takeIf { it.isNotEmpty() } 
+                            ?: article.taxonomy?.categories?.takeIf { it.isNotEmpty() } 
+                            ?: emptyList()
+                            
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .horizontalScroll(rememberScrollState())
+                                .padding(end = NewsSpacing.md),
+                            horizontalArrangement = Arrangement.spacedBy(NewsSpacing.xs)
+                        ) {
+                            tagsToDisplay.forEach { tag ->
+                                CategoryPill(tag)
+                            }
+                        }
                         Row(horizontalArrangement = Arrangement.spacedBy(NewsSpacing.xs)) {
                             onSave?.let {
                                 IconAction(
@@ -182,6 +222,25 @@ fun ArticleCard(
 @Composable
 private fun ArticleMetaRow(article: Article) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        val confidence = article.taxonomy?.mlConfidence
+        if (confidence != null && confidence >= 0.8f) {
+            Icon(
+                imageVector = Icons.Filled.AutoAwesome,
+                contentDescription = "Highly Relevant",
+                modifier = Modifier
+                    .size(16.dp)
+                    .graphicsLayer(alpha = 0.99f)
+                    .drawWithCache {
+                        onDrawWithContent {
+                            drawContent()
+                            drawRect(
+                                brush = AccentGradient,
+                                blendMode = androidx.compose.ui.graphics.BlendMode.SrcAtop
+                            )
+                        }
+                    }
+            )
+        }
         Text(
             text = article.source.name.uppercase(),
             style = MetaMono.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
@@ -372,9 +431,15 @@ fun PagingFooter(isVisible: Boolean) {
 fun formatDate(publishedAt: String?): String {
     if (publishedAt.isNullOrBlank()) return "Unknown"
     return try {
-        val f = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
-        val dt = LocalDateTime.parse(publishedAt, f)
-        val z = ZonedDateTime.of(dt, ZoneOffset.UTC)
-        z.format(DateTimeFormatter.ofPattern("MMM d · HH:mm 'GMT'"))
+        val instant = java.time.Instant.parse(publishedAt)
+        val now = java.time.Instant.now()
+        val duration = java.time.Duration.between(instant, now)
+        when {
+            duration.toMinutes() < 1 -> "Just now"
+            duration.toHours() < 1 -> "${duration.toMinutes()}m ago"
+            duration.toDays() < 1 -> "${duration.toHours()}h ago"
+            duration.toDays() == 1L -> "Yesterday"
+            else -> "${duration.toDays()}d ago"
+        }
     } catch (_: Exception) { "Unknown" }
 }
