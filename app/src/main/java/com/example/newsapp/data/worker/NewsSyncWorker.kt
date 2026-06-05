@@ -24,21 +24,14 @@ class NewsSyncWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         return try {
-            // 1. Ultra-Fast REST Polling: Sync the firehose directly
-            val syncResult = newsRepository.syncFirehose()
-            
-            if (syncResult.isSuccess) {
-                // 2. Pre-fetch HTML for the top 5 trending articles for instant offline reading
-                val topUrls = cachedFeedDao.getTopUrls(feedKey = "firehose", limit = 5)
-                for (url in topUrls) {
-                    if (!offlineHtmlCache.hasCachedHtml(url)) {
-                        offlineHtmlCache.fetchAndCacheHtml(url)
-                    }
+            // Pre-fetch HTML for the top 5 trending articles for instant offline reading
+            val topUrls = cachedFeedDao.getTopUrls(feedKey = "firehose", limit = 5)
+            for (url in topUrls) {
+                if (!offlineHtmlCache.hasCachedHtml(url)) {
+                    offlineHtmlCache.fetchAndCacheHtml(url)
                 }
-                Result.success()
-            } else {
-                Result.retry()
             }
+            Result.success()
         } catch (e: Exception) {
             Result.retry()
         }
