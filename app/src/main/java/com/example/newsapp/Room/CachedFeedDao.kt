@@ -40,43 +40,23 @@ interface CachedFeedDao {
         SELECT cached_feed_articles.* FROM cached_feed_articles 
         JOIN cached_feed_fts ON cached_feed_articles.id = cached_feed_fts.rowid 
         WHERE cached_feed_fts MATCH :matchQuery
-        AND cached_feed_articles.sourceName = :source
+        AND (:source IS NULL OR cached_feed_articles.sourceName = :source)
         ORDER BY 
           cached_feed_articles.relevanceScore DESC,
           cached_feed_articles.fetchedAt ASC, 
           cached_feed_articles.sortOrder ASC
     """)
-    fun getFilteredFeedWithMatchAndSource(matchQuery: String, source: String): androidx.paging.PagingSource<Int, CachedFeedArticleEntity>
-
-    @Query("""
-        SELECT cached_feed_articles.* FROM cached_feed_articles 
-        JOIN cached_feed_fts ON cached_feed_articles.id = cached_feed_fts.rowid 
-        WHERE cached_feed_fts MATCH :matchQuery
-        ORDER BY 
-          cached_feed_articles.relevanceScore DESC,
-          cached_feed_articles.fetchedAt ASC, 
-          cached_feed_articles.sortOrder ASC
-    """)
-    fun getFilteredFeedWithMatch(matchQuery: String): androidx.paging.PagingSource<Int, CachedFeedArticleEntity>
+    fun getFilteredFeedWithMatch(matchQuery: String, source: String?): androidx.paging.PagingSource<Int, CachedFeedArticleEntity>
 
     @Query("""
         SELECT * FROM cached_feed_articles 
-        WHERE sourceName = :source
+        WHERE (:source IS NULL OR sourceName = :source)
         ORDER BY 
           relevanceScore DESC,
           fetchedAt ASC, 
           sortOrder ASC
     """)
-    fun getFilteredFeedWithSource(source: String): androidx.paging.PagingSource<Int, CachedFeedArticleEntity>
-
-    @Query("""
-        SELECT * FROM cached_feed_articles 
-        ORDER BY 
-          relevanceScore DESC,
-          fetchedAt ASC, 
-          sortOrder ASC
-    """)
-    fun getFilteredFeedAll(): androidx.paging.PagingSource<Int, CachedFeedArticleEntity>
+    fun getFilteredFeedWithoutMatch(source: String?): androidx.paging.PagingSource<Int, CachedFeedArticleEntity>
 
     @Query("SELECT DISTINCT sourceName FROM cached_feed_articles WHERE sourceName IS NOT NULL AND sourceName != '' ORDER BY sourceName ASC")
     fun getAvailableSources(): kotlinx.coroutines.flow.Flow<List<String>>

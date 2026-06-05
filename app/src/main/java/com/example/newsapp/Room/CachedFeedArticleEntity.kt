@@ -32,5 +32,9 @@ data class CachedFeedArticleEntity(
     @androidx.room.ColumnInfo(name = "trusted_signer") val trustedSigner: String? = null,
     val regionCode: String? = null,
     val sourceTier: Int? = null,
-    val taxonomy: List<String>? = null
+    val taxonomyCategories: List<String>? = null,
+    val taxonomyTags: List<String>? = null,
+    val taxonomyMlConfidence: Float? = null,
+    val taxonomyId: String? = null,
+    val taxonomyArticleId: String? = null
 )

@@ -12,6 +12,9 @@ interface ArticleDao {
     @Upsert
     suspend fun upsertArticle(article: Article)
 
+    @Upsert
+    suspend fun upsertAll(articles: List<Article>)
+
     @Query("SELECT * FROM saved_articles ORDER BY title ASC")
     fun allArticle(): Flow<List<Article>>
 
