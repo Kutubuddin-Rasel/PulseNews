@@ -4,6 +4,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -35,6 +36,7 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
@@ -206,6 +208,8 @@ fun ArticleCard(
                                     description = if (isSaved) "Saved" else "Save article",
                                     tint = if (isSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     onClick = it,
+                                    hapticStrength = if (isSaved) HapticFeedbackType.TextHandleMove
+                                    else HapticFeedbackType.LongPress,
                                 )
                             }
                             onShare?.let {
@@ -221,41 +225,86 @@ fun ArticleCard(
 
 @Composable
 private fun ArticleMetaRow(article: Article) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            text = article.source.name.uppercase(),
+            style = MetaMono.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        if (article.provenance?.status == VerificationStatus.SOURCE_VERIFIED) {
+            VerifiedDot()
+        }
+        MetaSeparator()
+        Text(
+            text = formatDate(article.publishedAt).uppercase(),
+            style = MetaMono.copy(
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .75f),
+            ),
+            maxLines = 1,
+        )
+        article.estimateReadingMinutes()?.let { minutes ->
+            MetaSeparator()
+            Text(
+                text = "$minutes MIN READ",
+                style = MetaMono.copy(
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .75f),
+                ),
+                maxLines = 1,
+            )
+        }
         val confidence = article.taxonomy?.mlConfidence
         if (confidence != null && confidence >= 0.8f) {
+            Spacer(Modifier.weight(1f))
             Icon(
                 imageVector = Icons.Filled.AutoAwesome,
                 contentDescription = "Highly Relevant",
                 modifier = Modifier
-                    .size(16.dp)
+                    .size(14.dp)
                     .graphicsLayer(alpha = 0.99f)
                     .drawWithCache {
                         onDrawWithContent {
                             drawContent()
                             drawRect(
                                 brush = AccentGradient,
-                                blendMode = androidx.compose.ui.graphics.BlendMode.SrcAtop
+                                blendMode = androidx.compose.ui.graphics.BlendMode.SrcAtop,
                             )
                         }
-                    }
+                    },
             )
         }
-        Text(
-            text = article.source.name.uppercase(),
-            style = MetaMono.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-        )
-        if (article.provenance?.status == VerificationStatus.SOURCE_VERIFIED) {
-            VerifiedDot()
-        }
-        Box(Modifier.size(2.dp).clip(androidx.compose.foundation.shape.CircleShape)
-            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .5f)))
-        Text(
-            text = formatDate(article.publishedAt).uppercase(),
-            style = MetaMono.copy(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .75f)),
-        )
     }
+}
+
+@Composable
+private fun MetaSeparator() {
+    Box(
+        modifier = Modifier
+            .size(2.dp)
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .5f)),
+    )
+}
+
+private const val AVG_READING_CHARS_PER_MIN = 1100
+private val NEWSAPI_TRUNCATION_REGEX = Regex("""\s*\[\+(\d+)\s*chars]\s*$""")
+
+fun com.example.newsapp.module.Article.estimateReadingMinutes(): Int? {
+    val source = content?.takeIf { it.isNotBlank() }
+        ?: description?.takeIf { it.isNotBlank() }
+        ?: return null
+    val truncationMatch = NEWSAPI_TRUNCATION_REGEX.find(source)
+    val truncatedExtraChars = truncationMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
+    val cleanText = source.replace(NEWSAPI_TRUNCATION_REGEX, "").trim()
+    val totalChars = cleanText.length + truncatedExtraChars
+    if (totalChars <= 0) return null
+    val minutes = (totalChars + AVG_READING_CHARS_PER_MIN - 1) / AVG_READING_CHARS_PER_MIN
+    return minutes.coerceAtLeast(1)
 }
 
 @Composable
@@ -289,9 +338,15 @@ private fun IconAction(
     description: String,
     tint: androidx.compose.ui.graphics.Color,
     onClick: () -> Unit,
+    hapticStrength: HapticFeedbackType = HapticFeedbackType.TextHandleMove,
 ) {
     val haptic = LocalHapticFeedback.current
-    IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onClick() }) {
+    IconButton(
+        onClick = {
+            haptic.performHapticFeedback(hapticStrength)
+            onClick()
+        },
+    ) {
         Icon(icon, contentDescription = description, tint = tint, modifier = Modifier.size(20.dp))
     }
 }
@@ -442,4 +497,86 @@ fun formatDate(publishedAt: String?): String {
             else -> "${duration.toDays()}d ago"
         }
     } catch (_: Exception) { "Unknown" }
+}
+
+// ───────────────────────────────────────────────────────────
+// END-OF-FEED — the ethical finish line.
+// Fires when LoadState.append.endOfPaginationReached is true.
+// Generous vertical breathing room signals "the session is
+// complete" — the opposite of an infinite-scroll spinner.
+// ───────────────────────────────────────────────────────────
+@Composable
+fun EndOfFeedState(
+    lastUpdated: String?,
+    onBrowseSaved: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val subtitle = if (lastUpdated.isNullOrBlank()) {
+        "Check back later for new stories."
+    } else {
+        "Last updated ${formatDate(lastUpdated).lowercase()}. Check back later for new stories."
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = NewsSpacing.xl)
+            .padding(top = 80.dp, bottom = 96.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "You're caught up. $subtitle"
+            },
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        HorizontalDivider(
+            modifier = Modifier.width(56.dp),
+            thickness = 1.dp,
+            color = MaterialTheme.colorScheme.outline,
+        )
+
+        Spacer(Modifier.height(NewsSpacing.xl))
+
+        Text(
+            text = "You\u2019re caught up.",
+            style = MaterialTheme.typography.displaySmall,
+            color = MaterialTheme.colorScheme.onBackground,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
+        )
+
+        Spacer(Modifier.height(NewsSpacing.md))
+
+        Text(
+            text = subtitle,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+
+        Spacer(Modifier.height(NewsSpacing.xl))
+
+        OutlinedButton(
+            onClick = onBrowseSaved,
+            shape = RoundedCornerShape(NewsRadius.pill),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            contentPadding = PaddingValues(
+                horizontal = NewsSpacing.xl,
+                vertical = NewsSpacing.md,
+            ),
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Bookmark,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(NewsSpacing.sm))
+            Text(
+                text = "Browse saved articles",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+    }
 }
