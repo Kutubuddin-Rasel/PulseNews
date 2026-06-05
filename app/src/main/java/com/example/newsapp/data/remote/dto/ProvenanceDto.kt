@@ -1,14 +1,14 @@
 package com.example.newsapp.data.remote.dto
 
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
+import androidx.annotation.Keep
+import com.google.gson.annotations.SerializedName
 
-@Serializable
+@Keep
 data class ProvenanceDto(
-    @SerialName("status")
+    @SerializedName("status")
     val status: String? = null,
-    @SerialName("verification_method")
+    @SerializedName("verification_method")
     val verificationMethod: String? = null,
-    @SerialName("trusted_signer")
+    @SerializedName("trusted_signer")
     val trustedSigner: String? = null
 )
