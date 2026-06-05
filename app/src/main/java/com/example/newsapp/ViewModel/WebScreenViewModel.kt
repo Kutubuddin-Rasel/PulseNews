@@ -27,6 +27,10 @@ import com.example.newsapp.domain.util.ParsedArticle
 import com.example.newsapp.domain.util.HtmlParser
 import com.example.newsapp.domain.util.tts.TtsEngine
 import com.example.newsapp.data.util.EngagementTracker
+import com.example.newsapp.data.util.AiSummarizer
+import com.example.newsapp.data.util.AiSummaryResult
+import com.example.newsapp.data.util.nlp.TextRankSummarizer
+import com.example.newsapp.domain.util.ArticleBlock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOn
 
@@ -58,7 +62,7 @@ class WebScreenViewModel @Inject constructor(
     private val savedArticleRepository: SavedArticleRepository,
     private val connectivityMonitor: ConnectivityMonitor,
     private val offlineHtmlCache: OfflineHtmlCache,
-    private val aiSummarizer: com.example.newsapp.data.util.AiSummarizer,
+    private val aiSummarizer: AiSummarizer,
     private val ttsEngine: TtsEngine,
     private val engagementTracker: EngagementTracker
 ) : ViewModel() {
@@ -144,7 +148,7 @@ class WebScreenViewModel @Inject constructor(
                     _aiSummaryState.value = AiState.Loading
                     // Take up to 1500 words to stay within safe token limits and maintain speed
                     val fullText = state.article.blocks
-                        .filterIsInstance<com.example.newsapp.domain.util.ArticleBlock.Text>()
+                        .filterIsInstance<ArticleBlock.Text>()
                         .joinToString("\n\n") { it.content }
                     val truncatedText = fullText.split("\\s+".toRegex()).take(1500).joinToString(" ")
                     
@@ -156,16 +160,17 @@ class WebScreenViewModel @Inject constructor(
                     
                     val result = aiSummarizer.generateTlDr(backendId, truncatedText)
                     when (result) {
-                        is com.example.newsapp.data.util.AiSummaryResult.Success -> {
+                        is AiSummaryResult.Success -> {
                             Log.d("WebScreenVM", "AI Summary Success for $backendId")
                             _aiSummaryState.value = AiState.Success(result.summary)
                         }
-                        is com.example.newsapp.data.util.AiSummaryResult.RateLimitExceeded -> {
+                        is AiSummaryResult.RateLimitExceeded -> {
                             Log.w("WebScreenVM", "AI Summary RateLimited for $backendId. Triggering Extractive NLP Fallback.")
-                            val fallbackSummary = com.example.newsapp.data.util.ExtractiveSummarizer.extractSummary(truncatedText)
+                            val textRankSummarizer = TextRankSummarizer()
+                            val fallbackSummary = textRankSummarizer.summarize(truncatedText, state.article.title)
                             _aiSummaryState.value = AiState.SuccessFallback(fallbackSummary)
                         }
-                        is com.example.newsapp.data.util.AiSummaryResult.Error -> {
+                        is AiSummaryResult.Error -> {
                             Log.e("WebScreenVM", "AI Summary Error for $backendId: ${result.message}")
                             if (result.message == "GENERATION_FAILED") {
                                 _aiSummaryState.value = AiState.Error("Unable to generate an AI summary for this article.")
@@ -231,7 +236,7 @@ class WebScreenViewModel @Inject constructor(
                 val fullText = buildString {
                     appendLine(currentState.article.title)
                     currentState.article.blocks
-                        .filterIsInstance<com.example.newsapp.domain.util.ArticleBlock.Text>()
+                        .filterIsInstance<ArticleBlock.Text>()
                         .forEach { appendLine(it.content) }
                 }
                 
