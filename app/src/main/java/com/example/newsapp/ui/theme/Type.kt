@@ -62,3 +62,25 @@ val MetaMono = TextStyle(
     fontFamily = GeistMono, fontWeight = FontWeight.Medium,
     fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.6.sp
 )
+
+// ─── LONG-FORM READING ────────────────────────────────────
+// Newsreader serif for sustained article reading. Body sized
+// 18sp/28sp/0-tracking — the editorial reading floor used by
+// the major long-form publications. Used only in the article
+// detail content column; UI bodies stay on Geist.
+
+val ReaderLead = TextStyle(
+    fontFamily = Newsreader,
+    fontWeight = FontWeight.Normal,
+    fontSize = 20.sp,
+    lineHeight = 30.sp,
+    letterSpacing = (-0.1).sp
+)
+
+val ReaderBody = TextStyle(
+    fontFamily = Newsreader,
+    fontWeight = FontWeight.Normal,
+    fontSize = 18.sp,
+    lineHeight = 28.sp,
+    letterSpacing = 0.sp
+)
