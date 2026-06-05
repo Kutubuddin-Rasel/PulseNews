@@ -20,6 +20,10 @@ object HtmlParser {
     // Tags that should trigger ignoring their inner content
     private val IGNORED_TAGS = setOf("nav", "aside", "footer", "script", "style", "header", "form", "button")
     
+    private fun String.normalizeForComparison(): String {
+        return this.lowercase().replace(Regex("[^a-z0-9]"), "")
+    }
+    
     fun parse(html: String): ParsedArticle {
         val document = org.jsoup.Jsoup.parse(html)
         var title = document.title() ?: ""
@@ -32,17 +36,43 @@ object HtmlParser {
         // Remove noise tags
         document.select("nav, aside, footer, script, style, header, form, button, iframe").remove()
 
+        val titleNormalized = title.normalizeForComparison()
+
         // Try extracting standard tags first
         val elements = document.body().select("p, h1, h2, h3, img[src]")
         elements.forEach { element ->
             when (element.tagName()) {
                 "p" -> {
-                    val text = element.text()
-                    if (text.length > 30) blocks.add(ArticleBlock.Text(text, TextType.PARAGRAPH))
+                    val text = element.text().trim()
+                    if (text.length > 30) {
+                        val textNormalized = text.normalizeForComparison()
+                        // Skip if the first paragraph is just repeating the title
+                        val isDuplicateTitle = blocks.isEmpty() && textNormalized.length > 15 && 
+                            (titleNormalized.contains(textNormalized) || textNormalized.contains(titleNormalized))
+                            
+                        if (!isDuplicateTitle) {
+                            blocks.add(ArticleBlock.Text(text, TextType.PARAGRAPH))
+                        }
+                    }
                 }
-                "h1" -> { val text = element.text(); if (text.isNotBlank()) blocks.add(ArticleBlock.Text(text, TextType.H1)) }
-                "h2" -> { val text = element.text(); if (text.isNotBlank()) blocks.add(ArticleBlock.Text(text, TextType.H2)) }
-                "h3" -> { val text = element.text(); if (text.isNotBlank()) blocks.add(ArticleBlock.Text(text, TextType.H3)) }
+                "h1", "h2", "h3" -> { 
+                    val text = element.text().trim()
+                    if (text.isNotBlank()) {
+                        val textNormalized = text.normalizeForComparison()
+                        // Check if this header is just repeating the article title
+                        val isDuplicateTitle = textNormalized.length > 15 && 
+                            (titleNormalized.contains(textNormalized) || textNormalized.contains(titleNormalized))
+                        
+                        if (!isDuplicateTitle) {
+                            val type = when (element.tagName()) {
+                                "h1" -> TextType.H1
+                                "h2" -> TextType.H2
+                                else -> TextType.H3
+                            }
+                            blocks.add(ArticleBlock.Text(text, type))
+                        }
+                    } 
+                }
                 "img" -> {
                     val src = element.attr("src")
                     if (src.startsWith("http")) blocks.add(ArticleBlock.Image(url = src))
