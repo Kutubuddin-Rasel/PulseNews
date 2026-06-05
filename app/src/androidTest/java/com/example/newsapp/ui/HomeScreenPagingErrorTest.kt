@@ -12,7 +12,6 @@ import kotlinx.coroutines.flow.flowOf
 import org.junit.Rule
 import org.junit.Test
 import com.example.newsapp.Screen.HomeScreen
-import io.mockk.mockk
 import com.example.newsapp.ui.components.PagingFooter
 import com.example.newsapp.module.Article
 import kotlinx.coroutines.flow.flow

@@ -5,6 +5,7 @@ import com.example.newsapp.data.remote.dto.PulseMetaDto
 import com.example.newsapp.data.remote.dto.TaxonomyDto
 import com.example.newsapp.data.remote.dto.BookmarkRequest
 import com.example.newsapp.data.remote.dto.TelemetryBatchRequest
+import com.example.newsapp.data.remote.dto.TrendingTopicDto
 import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Query
@@ -32,7 +33,7 @@ interface PulseBackendApi {
     ): Response<List<PulseArticleDto>>
 
     @GET("api/news/trending")
-    suspend fun getTrendingTopics(): Response<List<String>>
+    suspend fun getTrendingTopics(): Response<List<TrendingTopicDto>>
 
     @GET("api/bookmarks")
     suspend fun getBookmarks(@Header("x-device-id") deviceId: String): Response<List<PulseArticleDto>>
