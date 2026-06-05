@@ -71,17 +71,17 @@ class ArticleRemoteMediator(
                 val endOfPaginationReached = articles.isEmpty()
                 val fetchedAt = clockProvider.nowMillis()
 
+                val entities = articles.mapIndexed { index, article ->
+                    article.toCacheEntity(
+                        feedKey = feedKey,
+                        sortOrder = index,
+                        fetchedAt = fetchedAt
+                    )
+                }
+
                 database.withTransaction {
                     if (loadType == LoadType.REFRESH) {
                         database.cachedFeedDao().clearFeed(feedKey)
-                    }
-
-                    val entities = articles.mapIndexed { index, article ->
-                        article.toCacheEntity(
-                            feedKey = feedKey,
-                            sortOrder = index,
-                            fetchedAt = fetchedAt
-                        )
                     }
                     database.cachedFeedDao().upsertAll(entities)
                 }
@@ -92,7 +92,7 @@ class ArticleRemoteMediator(
             }
         } catch (e: IOException) {
             MediatorResult.Error(e)
-        } catch (e: HttpException) {
+        } catch (e: Exception) {
             MediatorResult.Error(e)
         }
     }
