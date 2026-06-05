@@ -137,9 +137,9 @@ class NewsRepositoryCategoryFilterTest {
     }
 
     @Test
-    fun `getFeed with categoryId 3 (business) without dictionary match translates to without match`() = runTest {
+    fun `getFeed with categoryId 3 (business) without dictionary match translates to category match`() = runTest {
         // Arrange
-        every { cachedFeedDao.getFilteredFeedWithoutMatch(any()) } returns fakePagingSource
+        every { cachedFeedDao.getFilteredFeedWithMatch(any(), any()) } returns fakePagingSource
 
         // Act
         val flow = repository.getFeed(categoryId = 3)
@@ -149,7 +149,8 @@ class NewsRepositoryCategoryFilterTest {
 
         // Assert
         io.mockk.verify(timeout = 1000) {
-            cachedFeedDao.getFilteredFeedWithoutMatch(
+            cachedFeedDao.getFilteredFeedWithMatch(
+                matchQuery = match { it.contains("\"business\"") },
                 source = null
             )
         }
