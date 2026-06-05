@@ -42,15 +42,14 @@ class BookmarkStressTest {
         
         // Mock WorkManager so enqueueUniqueWork does not throw during setup
         workManager = mockk(relaxed = true)
-        mockkStatic(WorkManager::class)
-        every { WorkManager.getInstance(context) } returns workManager
 
         repository = SavedArticleRepositoryImpl(
             articleDao = articleDao,
             firestoreSyncManager = firestoreSyncManager,
             context = context,
             pulseBackendApi = backendApi,
-            deviceIdProvider = deviceIdProvider
+            deviceIdProvider = deviceIdProvider,
+            workManager = workManager
         )
     }
 

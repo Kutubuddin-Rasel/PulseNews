@@ -19,8 +19,7 @@ class PulseArticleDtoTest {
         val gson = Gson()
         val dto = gson.fromJson(json, PulseArticleDto::class.java)
 
-        // This will throw NPE and fail the test because dto.link is unexpectedly null
-        // demonstrating the bug found by SQA
-        val length = dto.link.length
+        // With the fix, dto.link is properly nullable, so it will be null instead of throwing an unexpected NPE later.
+        org.junit.Assert.assertNull(dto.link)
     }
 }
