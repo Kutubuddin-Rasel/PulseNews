@@ -90,9 +90,10 @@ class ArticleRemoteMediator(
                 val fetchedAt = clockProvider.nowMillis()
 
                 val entities = articles.mapIndexed { index, article ->
+                    val offset = (page - 1) * state.config.pageSize
                     article.toCacheEntity(
                         feedKey = feedKey,
-                        sortOrder = index,
+                        sortOrder = offset + index,
                         fetchedAt = fetchedAt
                     )
                 }
