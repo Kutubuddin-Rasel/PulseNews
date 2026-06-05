@@ -1,15 +1,15 @@
 package com.example.newsapp.data.remote.dto
 
-import kotlinx.serialization.Serializable
+import androidx.annotation.Keep
 
-@Serializable
+@Keep
 data class TelemetryEventDto(
     val articleId: String,
     val interactionType: String,
     val timestamp: Long
 )
 
-@Serializable
+@Keep
 data class TelemetryBatchRequest(
     val events: List<TelemetryEventDto>
 )

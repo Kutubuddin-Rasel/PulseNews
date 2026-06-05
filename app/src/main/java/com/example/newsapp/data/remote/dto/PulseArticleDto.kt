@@ -2,7 +2,10 @@ package com.example.newsapp.data.remote.dto
 
 data class ArticleTaxonomyDto(
     val categories: List<String>? = null,
-    val tags: List<String>? = null
+    val tags: List<String>? = null,
+    val mlConfidence: Float? = null,
+    val id: String? = null,
+    val articleId: String? = null
 )
 
 data class BookmarkRequest(
@@ -10,12 +13,12 @@ data class BookmarkRequest(
 )
 
 data class PulseArticleDto(
-    val id: String,
-    val title: String,
-    val link: String,
-    val snippet: String,
-    val pubDate: String,
-    val source: String,
+    val id: String?,
+    val title: String?,
+    val link: String?,
+    val snippet: String?,
+    val pubDate: String?,
+    val source: String?,
     val urlToImage: String? = null,
     val provenance: ProvenanceDto? = null,
     val regionCode: String? = null,
