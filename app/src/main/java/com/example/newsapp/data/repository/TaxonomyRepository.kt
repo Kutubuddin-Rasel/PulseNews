@@ -10,6 +10,7 @@ import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
+import com.example.newsapp.domain.model.CategoryKey
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,27 +26,35 @@ class TaxonomyRepository @Inject constructor(
         // The Day 0 Fallback dictionary
         private val FALLBACK_DICTIONARY = mapOf(
             "tech" to listOf("tech", "technology", "software", "ai", "apple", "google", "microsoft", "cyber", "artificial intelligence", "machine learning"),
-            "politics" to listOf("politics", "government", "election", "president", "congress", "senate", "policy", "supreme court"),
             "business" to listOf("economy", "stock", "market", "finance", "business", "inflation", "corporate", "wall street", "stock market", "federal reserve"),
             "sports" to listOf("sports", "football", "basketball", "soccer", "nfl", "nba", "championship", "athlete", "premier league"),
-            "entertainment" to listOf("movie", "music", "hollywood", "celebrity", "entertainment", "actor", "award", "box office")
+            "politics" to listOf("politics", "government", "election", "president", "congress", "senate", "policy", "supreme court"),
+            "health" to listOf("health", "medicine", "wellness", "medical", "disease", "covid", "hospital", "fitness"),
+            "science" to listOf("science", "space", "nasa", "research", "physics", "biology", "astronomy", "discovery"),
+            "entertainment" to listOf("movie", "music", "hollywood", "celebrity", "entertainment", "actor", "award", "box office"),
+            "world" to listOf("world", "global", "international", "europe", "asia", "africa", "un", "diplomacy"),
+            "crypto" to listOf("crypto", "bitcoin", "ethereum", "blockchain", "web3", "nft", "cryptocurrency"),
+            "design" to listOf("design", "ui", "ux", "architecture", "art", "creative", "fashion", "graphic design")
         )
     }
 
     /**
      * Flow that emits the dictionary. If the DataStore is empty, it returns the Day 0 fallback.
      */
-    val dictionaryFlow: Flow<Map<String, List<String>>> = dataStore.data.map { prefs ->
+    val dictionaryFlow: Flow<Map<CategoryKey, List<String>>> = dataStore.data.map { prefs ->
+        val map = mutableMapOf<CategoryKey, List<String>>()
         val jsonString = prefs[KEY_TAXONOMY_JSON]
         if (jsonString != null) {
             try {
                 val type = object : TypeToken<Map<String, List<String>>>() {}.type
-                gson.fromJson(jsonString, type)
+                val parsed: Map<String, List<String>> = gson.fromJson(jsonString, type)
+                parsed.forEach { (k, v) -> map[CategoryKey(k)] = v }
+                map
             } catch (e: Exception) {
-                FALLBACK_DICTIONARY
+                FALLBACK_DICTIONARY.mapKeys { CategoryKey(it.key) }
             }
         } else {
-            FALLBACK_DICTIONARY
+            FALLBACK_DICTIONARY.mapKeys { CategoryKey(it.key) }
         }
     }
 
