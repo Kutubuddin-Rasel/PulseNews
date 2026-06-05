@@ -7,9 +7,12 @@ import androidx.room.withTransaction
 import com.example.newsapp.data.mapper.toCacheEntity
 import com.example.newsapp.data.mapper.toDomainArticle
 import com.example.newsapp.data.mapper.toDomainOrNull
+import com.example.newsapp.data.mapper.toDomain
 import com.example.newsapp.data.util.AppTelemetry
 import com.example.newsapp.domain.model.AppError
+import com.example.newsapp.domain.model.CategoryKey
 import com.example.newsapp.domain.model.EverythingQuery
+import com.example.newsapp.domain.model.TrendingTopic
 import com.example.newsapp.domain.model.UiState
 import com.example.newsapp.domain.repository.NewsRepository
 import com.example.newsapp.domain.util.ClockProvider
@@ -24,7 +27,8 @@ import java.io.IOException
 import javax.inject.Inject
 import com.example.newsapp.domain.util.FeedScorer
 import kotlinx.coroutines.flow.first
-
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 class NewsRepositoryImpl @Inject constructor(
     private val pulseBackendApi: PulseBackendApi,
     private val database: ArticleDatabase,
@@ -37,11 +41,11 @@ class NewsRepositoryImpl @Inject constructor(
 ) : NewsRepository {
 
     @OptIn(androidx.paging.ExperimentalPagingApi::class)
-    override fun getFeed(categoryId: Int, keyword: String?, source: String?): Flow<androidx.paging.PagingData<Article>> {
-        val feedKey = if (categoryId == 1) "for_you" else "firehose"
+    override fun getFeed(categoryKey: CategoryKey, keyword: String?, source: String?): Flow<androidx.paging.PagingData<Article>> {
+        val feedKey = if (categoryKey == CategoryKey.FOR_YOU) "for_you" else "firehose"
 
-        // If a keyword is provided, intercept the flow and use the backend Search API directly!
-        if (!keyword.isNullOrBlank()) {
+        // If a keyword is provided and device is online, intercept the flow and use the backend Search API directly!
+        if (!keyword.isNullOrBlank() && connectivityMonitor.isOnline()) {
             return androidx.paging.Pager(
                 config = androidx.paging.PagingConfig(
                     pageSize = 20,
@@ -54,162 +58,102 @@ class NewsRepositoryImpl @Inject constructor(
             ).flow
         }
 
-        // If it's category 1 (For You) and no filters are applied, use the RemoteMediator to fetch from backend.
-        // Otherwise, only use local data.
-        val useRemoteMediator = categoryId == 1 && source.isNullOrBlank()
+        // Use RemoteMediator to handle graceful backend pagination and local cache appending for all feeds
+        val useRemoteMediator = source.isNullOrBlank()
 
-        return androidx.paging.Pager(
-            config = androidx.paging.PagingConfig(
-                pageSize = 20,
-                prefetchDistance = 5,
-                enablePlaceholders = false
-            ),
-            remoteMediator = if (useRemoteMediator) {
-                ArticleRemoteMediator(
-                    feedKey = feedKey,
-                    pulseBackendApi = pulseBackendApi,
-                    database = database,
-                    connectivityMonitor = connectivityMonitor,
-                    clockProvider = clockProvider,
-                    telemetry = telemetry
-                )
-            } else null,
-            pagingSourceFactory = {
-                if (useRemoteMediator) {
-                    database.cachedFeedDao().getByFeedKey(feedKey)
-                } else {
-                    val (matchQuery, hasMatch) = buildFtsMatchQuery(categoryId, keyword)
-                    val hasSource = if (source.isNullOrBlank()) 0 else 1
-                    
-                    if (hasMatch == 1 && hasSource == 1) {
-                        database.cachedFeedDao().getFilteredFeedWithMatchAndSource(matchQuery, source!!)
-                    } else if (hasMatch == 1) {
-                        database.cachedFeedDao().getFilteredFeedWithMatch(matchQuery)
-                    } else if (hasSource == 1) {
-                        database.cachedFeedDao().getFilteredFeedWithSource(source!!)
-                    } else {
-                        database.cachedFeedDao().getFilteredFeedAll()
+        return taxonomyRepository.dictionaryFlow
+            .map { it[categoryKey] ?: emptyList() }
+            .distinctUntilChanged()
+            .flatMapLatest { keywords ->
+                androidx.paging.Pager(
+                    config = androidx.paging.PagingConfig(
+                        pageSize = 20,
+                        prefetchDistance = 5,
+                        enablePlaceholders = false
+                    ),
+                    remoteMediator = if (useRemoteMediator) {
+                        ArticleRemoteMediator(
+                            feedKey = feedKey,
+                            pulseBackendApi = pulseBackendApi,
+                            database = database,
+                            connectivityMonitor = connectivityMonitor,
+                            clockProvider = clockProvider,
+                            telemetry = telemetry
+                        )
+                    } else null,
+                    pagingSourceFactory = {
+                        if (categoryKey == CategoryKey.FOR_YOU && keyword.isNullOrBlank()) {
+                            database.cachedFeedDao().getByFeedKey(feedKey)
+                        } else {
+                            val matchTerms = mutableListOf<String>()
+
+                            if (categoryKey != CategoryKey.FOR_YOU) {
+                                if (keywords.isNotEmpty()) {
+                                    val categoryMatch = "(" + keywords.joinToString(" OR ") { "\"$it\"" } + ")"
+                                    matchTerms.add(categoryMatch)
+                                } else {
+                                    matchTerms.add("(\"${categoryKey.value}\")")
+                                }
+                            }
+
+                            if (!keyword.isNullOrBlank()) {
+                                val sanitizedKeyword = keyword.replace(Regex("[^a-zA-Z0-9 ]"), "").trim()
+                                if (sanitizedKeyword.isNotEmpty()) {
+                                    val words = sanitizedKeyword.split("\\s+".toRegex())
+                                    val prefixQuery = words.joinToString(" ") { "$it*" }
+                                    matchTerms.add("($prefixQuery)")
+                                }
+                            }
+
+                            val matchQuery = matchTerms.joinToString(" AND ")
+                            
+                            if (matchQuery.isNotEmpty()) {
+                                database.cachedFeedDao().getFilteredFeedWithMatch(matchQuery, source)
+                            } else {
+                                database.cachedFeedDao().getFilteredFeedWithoutMatch(source)
+                            }
+                        }
                     }
+                ).flow.map { pagingData ->
+                    pagingData.map { it.toDomainArticle() }
                 }
             }
-        ).flow.map { pagingData ->
-            pagingData.map { it.toDomainArticle() }
-        }
     }
 
-    override fun getAvailableSources(): Flow<List<String>> {
+    override fun getAvailableSources(): kotlinx.coroutines.flow.Flow<List<String>> {
         return database.cachedFeedDao().getAvailableSources()
-    }
-
-    private fun buildFtsMatchQuery(categoryId: Int, keyword: String?): Pair<String, Int> {
-        val matchTerms = mutableListOf<String>()
-
-        // 1. Dynamic Category logic via Hybrid ML Taxonomy (No more hardcoded rules!)
-        val categoryKey = when (categoryId) {
-            2 -> "tech"
-            3 -> "business"
-            4 -> "politics"
-            5 -> "sports"
-            6 -> "entertainment"
-            7 -> "health"
-            else -> null
-        }
-
-        if (categoryKey != null) {
-            // Because this executes in a PagingSource block synchronously, we need the latest value.
-            // Using runBlocking inside a Repository is usually an anti-pattern, but PagingSource
-            // load() runs on a background thread so it's safe here, or we can use firstOrNull().
-            val dictionary = kotlinx.coroutines.runBlocking { taxonomyRepository.dictionaryFlow.first() }
-            val keywords = dictionary[categoryKey]
-            if (!keywords.isNullOrEmpty()) {
-                // Wrap each keyword in double quotes to support multi-word phrases (e.g. "Apple Vision Pro") in FTS
-                val categoryMatch = "(" + keywords.joinToString(" OR ") { "\"$it\"" } + ")"
-                matchTerms.add(categoryMatch)
-            }
-        }
-
-        // 2. Keyword logic
-        if (!keyword.isNullOrBlank()) {
-            val sanitizedKeyword = keyword.replace(Regex("[^a-zA-Z0-9 ]"), "").trim()
-            if (sanitizedKeyword.isNotEmpty()) {
-                val words = sanitizedKeyword.split("\\s+".toRegex())
-                val prefixQuery = words.joinToString(" ") { "$it*" }
-                matchTerms.add("($prefixQuery)")
-            }
-        }
-
-        return if (matchTerms.isNotEmpty()) {
-            Pair(matchTerms.joinToString(" AND "), 1)
-        } else {
-            Pair("", 0)
-        }
     }
 
     override suspend fun cachedArticleByUrl(url: String): Article? {
         return database.cachedFeedDao().findOneByUrl(url)?.toDomainArticle()
     }
 
-    override suspend fun syncFirehose(): Result<Unit> {
-        if (!connectivityMonitor.isOnline()) {
-            return Result.failure(IOException("Offline"))
-        }
 
-        return try {
-            val response = pulseBackendApi.getNewsFeed(cursor = null, limit = 400)
-            if (response.isSuccessful) {
-                val articlesDto = response.body() ?: emptyList()
-                val articles = articlesDto.mapNotNull { it.toDomainOrNull() }
-                val fetchedAt = clockProvider.nowMillis()
-
-                database.withTransaction {
-                    // Clear the old firehose cache and remote keys to ensure a clean state
-                    database.cachedFeedDao().clearFeed("firehose")
-
-                    val currentPrefs = algoPrefsRepo.preferences.first()
-
-                    val entities = articles.mapIndexed { index, article ->
-                        val score = feedScorer.computeScore(article, currentPrefs, fetchedAt)
-                        article.toCacheEntity(
-                            feedKey = "firehose",
-                            sortOrder = index,
-                            fetchedAt = fetchedAt
-                        ).copy(relevanceScore = score)
-                    }
-                    database.cachedFeedDao().upsertAll(entities)
-                }
-                Result.success(Unit)
-            } else {
-                Result.failure(retrofit2.HttpException(response))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    override suspend fun getNewsMetaLastUpdated(): Result<String?> {
-        if (!connectivityMonitor.isOnline()) {
-            return Result.failure(IOException("Offline"))
-        }
-        return try {
-            val response = pulseBackendApi.getNewsMeta()
-            if (response.isSuccessful) {
-                Result.success(response.body()?.lastUpdated)
-            } else {
-                Result.failure(retrofit2.HttpException(response))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    override suspend fun getTrendingTopics(): Result<List<String>> {
+    override suspend fun getTrendingTopics(): Result<List<TrendingTopic>> {
         if (!connectivityMonitor.isOnline()) {
             return Result.failure(IOException("Offline"))
         }
         return try {
             val response = pulseBackendApi.getTrendingTopics()
             if (response.isSuccessful) {
-                Result.success(response.body() ?: emptyList())
+                val body = response.body() ?: emptyList()
+                Result.success(body.map { it.toDomain() })
+            } else {
+                Result.failure(retrofit2.HttpException(response))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getNewsMeta(): Result<com.example.newsapp.data.remote.dto.PulseMetaDto> {
+        if (!connectivityMonitor.isOnline()) {
+            return Result.failure(IOException("Offline"))
+        }
+        return try {
+            val response = pulseBackendApi.getNewsMeta()
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
             } else {
                 Result.failure(retrofit2.HttpException(response))
             }
@@ -233,21 +177,16 @@ class NewsRepositoryImpl @Inject constructor(
             val updatedEntities = mutableListOf<com.example.newsapp.Room.CachedFeedArticleEntity>()
 
             chunk.forEach { entity ->
-                // Map back to domain article temporarily to use the generic FeedScorer
-                val article = Article(
-                    author = entity.author,
+                val newScore = feedScorer.computeScore(
+                    title = entity.title,
                     content = entity.content,
                     description = entity.description,
+                    sourceName = entity.sourceName,
+                    sourceTier = entity.sourceTier,
                     publishedAt = entity.publishedAt,
-                    source = com.example.newsapp.module.Source(
-                        id = entity.sourceId,
-                        name = entity.sourceName
-                    ),
-                    title = entity.title,
-                    url = entity.url,
-                    urlToImage = entity.urlToImage
+                    userWeights = currentPrefs,
+                    currentTimeMillis = currentTime
                 )
-                val newScore = feedScorer.computeScore(article, currentPrefs, currentTime)
                 if (newScore != entity.relevanceScore) {
                     updatedEntities.add(entity.copy(relevanceScore = newScore))
                 }
