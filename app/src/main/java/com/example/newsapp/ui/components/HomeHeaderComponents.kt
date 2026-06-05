@@ -5,6 +5,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -181,7 +183,7 @@ fun CategoryChip(text: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SourceFilterBottomSheet(
     selectedSource: String?,
@@ -196,17 +198,84 @@ fun SourceFilterBottomSheet(
         containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(topStart = NewsRadius.lg, topEnd = NewsRadius.lg),
     ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = NewsSpacing.lg, vertical = NewsSpacing.md)) {
-            Text("SOURCE", style = MetaMono, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(NewsSpacing.sm))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
-                verticalArrangement = Arrangement.spacedBy(NewsSpacing.sm)) {
-                CategoryChip("All sources", selectedSource == null) { onSourceChange(null) }
-                availableSources.forEach { src ->
-                    CategoryChip(src, selectedSource == src) { onSourceChange(src) }
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.85f)
+        ) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = NewsSpacing.lg, vertical = NewsSpacing.md),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("SOURCE FILTER", style = MetaMono, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (selectedSource != null) {
+                    TextButton(
+                        onClick = { onSourceChange(null); onDismissRequest() },
+                        contentPadding = PaddingValues(horizontal = NewsSpacing.md)
+                    ) {
+                        Text("Reset", style = MaterialTheme.typography.labelLarge)
+                    }
                 }
             }
-            Spacer(Modifier.height(NewsSpacing.xl))
+            
+            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+            
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f)
+            ) {
+                item {
+                    SourceListItem(
+                        name = "All sources",
+                        selected = selectedSource == null,
+                        onClick = { onSourceChange(null); onDismissRequest() }
+                    )
+                }
+                items(availableSources) { src ->
+                    SourceListItem(
+                        name = src,
+                        selected = selectedSource == src,
+                        onClick = { onSourceChange(src); onDismissRequest() }
+                    )
+                }
+                item {
+                    Spacer(Modifier.height(NewsSpacing.xl))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SourceListItem(name: String, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        color = if (selected) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f) else Color.Transparent
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = NewsSpacing.lg, vertical = NewsSpacing.md),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                name,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                ),
+                color = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(Modifier.weight(1f))
+            if (selected) {
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = "Selected",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     }
 }
