@@ -15,6 +15,7 @@ import com.example.newsapp.domain.model.EverythingQuery
 import com.example.newsapp.domain.model.TrendingTopic
 import com.example.newsapp.domain.model.UiState
 import com.example.newsapp.domain.repository.NewsRepository
+import com.example.newsapp.domain.repository.AlgorithmPreferencesRepository
 import com.example.newsapp.domain.util.ClockProvider
 import com.example.newsapp.domain.util.ConnectivityMonitor
 import com.example.newsapp.module.Article
@@ -34,7 +35,8 @@ class NewsRepositoryImpl @Inject constructor(
     private val database: ArticleDatabase,
     private val connectivityMonitor: ConnectivityMonitor,
     private val clockProvider: ClockProvider,
-    private val telemetry: AppTelemetry
+    private val telemetry: AppTelemetry,
+    private val algorithmPreferencesRepository: AlgorithmPreferencesRepository
 ) : NewsRepository {
 
     @OptIn(androidx.paging.ExperimentalPagingApi::class)
@@ -57,7 +59,8 @@ class NewsRepositoryImpl @Inject constructor(
                     database = database,
                     connectivityMonitor = connectivityMonitor,
                     clockProvider = clockProvider,
-                    telemetry = telemetry
+                    telemetry = telemetry,
+                    algorithmPreferencesRepository = algorithmPreferencesRepository
                 )
             } else null,
             pagingSourceFactory = {
@@ -80,7 +83,7 @@ class NewsRepositoryImpl @Inject constructor(
                 enablePlaceholders = false
             ),
             pagingSourceFactory = { 
-                SearchPagingSource(pulseBackendApi, connectivityMonitor, query) 
+                SearchPagingSource(pulseBackendApi, connectivityMonitor, database, query) 
             }
         ).flow
     }

@@ -6,12 +6,15 @@ import com.example.newsapp.Api.PulseBackendApi
 import com.example.newsapp.data.mapper.toDomainOrNull
 import com.example.newsapp.domain.util.ConnectivityMonitor
 import com.example.newsapp.module.Article
+import com.example.newsapp.data.mapper.toCacheEntity
+import com.example.newsapp.Room.ArticleDatabase
 import retrofit2.HttpException
 import java.io.IOException
 
 class SearchPagingSource(
     private val api: PulseBackendApi,
     private val connectivityMonitor: ConnectivityMonitor,
+    private val database: ArticleDatabase,
     private val query: String
 ) : PagingSource<Int, Article>() {
 
@@ -34,6 +37,13 @@ class SearchPagingSource(
             if (response.isSuccessful) {
                 val dtos = response.body() ?: emptyList()
                 val articles = dtos.mapNotNull { it.toDomainOrNull() }
+                
+                // Cache the search results in the database so ArticleDetailScreen can find them locally
+                val fetchedAt = System.currentTimeMillis()
+                val cacheEntities = articles.mapIndexed { index, article -> 
+                    article.toCacheEntity("search", (page - 1) * params.loadSize + index, fetchedAt) 
+                }
+                database.cachedFeedDao().upsertAll(cacheEntities)
                 
                 val nextKey = if (dtos.isEmpty() || dtos.size < params.loadSize) {
                     null

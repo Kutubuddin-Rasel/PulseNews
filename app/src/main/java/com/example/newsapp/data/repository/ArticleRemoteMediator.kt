@@ -13,6 +13,8 @@ import com.example.newsapp.data.mapper.toDomainOrNull
 import com.example.newsapp.data.util.AppTelemetry
 import com.example.newsapp.domain.util.ClockProvider
 import com.example.newsapp.domain.util.ConnectivityMonitor
+import com.example.newsapp.domain.repository.AlgorithmPreferencesRepository
+import kotlinx.coroutines.flow.first
 import retrofit2.HttpException
 import java.io.IOException
 
@@ -23,7 +25,8 @@ class ArticleRemoteMediator(
     private val database: ArticleDatabase,
     private val connectivityMonitor: ConnectivityMonitor,
     private val clockProvider: ClockProvider,
-    private val telemetry: AppTelemetry
+    private val telemetry: AppTelemetry,
+    private val algorithmPreferencesRepository: AlgorithmPreferencesRepository
 ) : RemoteMediator<Int, CachedFeedArticleEntity>() {
 
     private val cacheFreshnessMs = 15 * 60 * 1000L
@@ -74,7 +77,9 @@ class ArticleRemoteMediator(
             val response = if (feedKey == "for_you" || feedKey == "firehose") {
                 // If it's firehose, it means all categories, so category = null
                 if (feedKey == "for_you") {
-                    pulseBackendApi.getForYouFeed(page = page, limit = state.config.pageSize)
+                    val weights = algorithmPreferencesRepository.preferences.first()
+                    val weightsStr = "technology:${weights["technology"]},politics:${weights["politics"]},general:${weights["general"]},business:${weights["business"]},health:${weights["health"]}"
+                    pulseBackendApi.getForYouFeed(page = page, limit = state.config.pageSize, weights = weightsStr)
                 } else {
                     pulseBackendApi.getNewsFeed(page = page, limit = state.config.pageSize, category = null)
                 }
