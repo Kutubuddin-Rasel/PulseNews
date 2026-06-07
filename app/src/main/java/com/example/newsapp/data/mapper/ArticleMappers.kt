@@ -25,9 +25,29 @@ private fun String.fastStripHtml(): String {
 
 private val statusMap = VerificationStatus.entries.associateBy { it.name }
 
+private fun String.cleanSeoSuffixes(): String {
+    // Remove everything after the first ` | ` (e.g., "Title | Author | Publisher")
+    val pipeIndex = this.indexOf(" | ")
+    var cleaned = if (pipeIndex > 0) this.substring(0, pipeIndex) else this
+
+    // Remove typical trailing dash Publisher (e.g., "Title - BBC News").
+    // We only do this for the last dash, and only if the text after the dash is short (< 35 chars)
+    val lastDashIndex = cleaned.lastIndexOf(" - ")
+    if (lastDashIndex > 0 && cleaned.length - lastDashIndex < 35) {
+        cleaned = cleaned.substring(0, lastDashIndex)
+    }
+    
+    val lastEmDashIndex = cleaned.lastIndexOf(" — ")
+    if (lastEmDashIndex > 0 && cleaned.length - lastEmDashIndex < 35) {
+        cleaned = cleaned.substring(0, lastEmDashIndex)
+    }
+
+    return cleaned.trim()
+}
+
 fun ArticleDto.toDomainOrNull(): Article? {
     val cleanedUrl = url?.trim().orEmpty()
-    val cleanedTitle = title?.trim().orEmpty()
+    val cleanedTitle = title?.trim().orEmpty().cleanSeoSuffixes()
     if (cleanedUrl.isEmpty() || cleanedTitle.isEmpty()) {
         return null
     }
@@ -56,7 +76,7 @@ fun ArticleDto.toDomainOrNull(): Article? {
 
 fun PulseArticleDto.toDomainOrNull(): Article? {
     val cleanedUrl = link?.trim().orEmpty()
-    val cleanedTitle = title?.trim().orEmpty().fastStripHtml()
+    val cleanedTitle = title?.trim().orEmpty().fastStripHtml().cleanSeoSuffixes()
     if (cleanedUrl.isEmpty() || cleanedTitle.isEmpty()) {
         return null
     }
