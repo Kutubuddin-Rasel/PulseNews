@@ -3,6 +3,7 @@ package com.example.newsapp.data.util
 import org.junit.Test
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertEquals
+import com.example.newsapp.data.util.nlp.TextRankSummarizer
 
 class TextRankSummarizerTest {
 
@@ -22,7 +23,7 @@ class TextRankSummarizerTest {
 
         val title = "Trump administration invokes emergency powers to save coal plants"
 
-        val summarizer = com.example.newsapp.data.util.nlp.TextRankSummarizer()
+        val summarizer = TextRankSummarizer()
         val summary = summarizer.summarize(articleText, title, 3)
         
         println("Original length: ${articleText.length}")

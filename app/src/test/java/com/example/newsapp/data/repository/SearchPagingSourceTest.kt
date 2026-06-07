@@ -12,18 +12,21 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import retrofit2.Response
+import com.example.newsapp.Room.ArticleDatabase
 
 class SearchPagingSourceTest {
 
     private lateinit var api: PulseBackendApi
     private lateinit var connectivityMonitor: ConnectivityMonitor
+    private lateinit var database: ArticleDatabase
     private lateinit var pagingSource: SearchPagingSource
 
     @Before
     fun setup() {
         api = mockk()
         connectivityMonitor = mockk()
-        pagingSource = SearchPagingSource(api, connectivityMonitor, "test query")
+        database = mockk(relaxed = true)
+        pagingSource = SearchPagingSource(api, connectivityMonitor, database, "test query")
     }
 
     @Test
@@ -37,12 +40,12 @@ class SearchPagingSourceTest {
         )
         
         coEvery { 
-            api.searchNews(query = "test query", cursor = "next_cursor_123", limit = 10) 
+            api.searchNews(query = "test query", page = 2, limit = 10) 
         } returns errorResponse
 
         // Force loadState.append (simulated by calling load with LoadParams.Append)
         val loadParams = PagingSource.LoadParams.Append(
-            key = "next_cursor_123",
+            key = 2,
             loadSize = 10,
             placeholdersEnabled = false
         )
