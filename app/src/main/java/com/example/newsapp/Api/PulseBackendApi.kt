@@ -20,13 +20,15 @@ interface PulseBackendApi {
     suspend fun getNewsFeed(
         @Query("page") page: Int?, 
         @Query("limit") limit: Int = 20,
-        @Query("category") category: String? = null
+        @Query("category") category: String? = null,
+        @Query("edition") edition: String? = null
     ): Response<List<PulseArticleDto>>
 
     @GET("api/news/foryou")
     suspend fun getForYouFeed(
         @Query("page") page: Int?, 
-        @Query("limit") limit: Int = 20
+        @Query("limit") limit: Int = 20,
+        @Query("weights") weights: String? = null
     ): Response<List<PulseArticleDto>>
 
     @GET("api/news/meta")
@@ -60,7 +62,7 @@ interface PulseBackendApi {
     @GET("api/taxonomy")
     suspend fun getTaxonomy(): Response<TaxonomyDto>
 
-    @POST("api/news/interactions")
+    @POST("api/news/telemetry")
     suspend fun postInteractions(
         @Header("x-device-id") deviceId: String,
         @Body request: TelemetryBatchRequest
