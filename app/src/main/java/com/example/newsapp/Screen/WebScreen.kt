@@ -36,6 +36,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -110,6 +111,14 @@ fun WebScreen(navController: NavController) {
             }
         }
 
+        var maxScrollPercent by remember { mutableIntStateOf(0) }
+
+        DisposableEffect(Unit) {
+            onDispose {
+                viewModel.recordDwell(maxScrollPercent)
+            }
+        }
+
         // 50% Scroll Detection for Gamification
         LaunchedEffect(listState) {
             androidx.compose.runtime.snapshotFlow { listState.layoutInfo }
@@ -117,6 +126,10 @@ fun WebScreen(navController: NavController) {
                     val totalItems = layoutInfo.totalItemsCount
                     if (totalItems > 0) {
                         val lastVisibleItemIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                        val currentPercent = ((lastVisibleItemIndex + 1) * 100) / totalItems
+                        if (currentPercent > maxScrollPercent) {
+                            maxScrollPercent = currentPercent
+                        }
                         // If user scrolled past 50% of the content
                         if (lastVisibleItemIndex >= totalItems / 2) {
                             viewModel.recordArticleRead()

@@ -41,8 +41,11 @@ fun SettingsScreen(
             Text("Settings", style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onBackground)
             Spacer(Modifier.height(NewsSpacing.xs))
-            Text("VERSION 2.4.1", style = MetaMono,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                text = "VERSION ${com.example.newsapp.BuildConfig.VERSION_NAME}".uppercase(),
+                style = MetaMono,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
             Spacer(Modifier.height(NewsSpacing.xl))
             GroupLabel("PREFERENCES")
@@ -88,21 +91,21 @@ fun SettingsScreen(
                             onClick = { viewModel.setThemePreference(ThemePreference.SYSTEM) },
                             shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3)
                         ) {
-                            Text("System", style = MaterialTheme.typography.labelSmall)
+                            Text("System", style = MaterialTheme.typography.labelLarge)
                         }
                         SegmentedButton(
                             selected = themePreference == ThemePreference.LIGHT,
                             onClick = { viewModel.setThemePreference(ThemePreference.LIGHT) },
                             shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3)
                         ) {
-                            Text("Light", style = MaterialTheme.typography.labelSmall)
+                            Text("Light", style = MaterialTheme.typography.labelLarge)
                         }
                         SegmentedButton(
                             selected = themePreference == ThemePreference.DARK,
                             onClick = { viewModel.setThemePreference(ThemePreference.DARK) },
                             shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3)
                         ) {
-                            Text("Dark", style = MaterialTheme.typography.labelSmall)
+                            Text("Dark", style = MaterialTheme.typography.labelLarge)
                         }
                     }
                 }
@@ -125,8 +128,11 @@ fun SettingsScreen(
             SettingRow(Icons.Filled.CloudDone, "App status",
                 "Offline cache and resilient networking are enabled")
             Spacer(Modifier.height(NewsSpacing.xs))
-            SettingRow(Icons.Filled.Description, "Licenses",
-                "Open-source dependencies", onClick = {})
+            SettingRow(
+                icon = Icons.Filled.Description,
+                title = "Licenses",
+                subtitle = "Open-source dependencies",
+            )
         }
     }
 }

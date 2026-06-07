@@ -59,7 +59,14 @@ fun SearchScreen(
     val focusManager = LocalFocusManager.current
     val haptic = LocalHapticFeedback.current
 
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    var hasRequestedFocus by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) { 
+        if (!hasRequestedFocus) {
+            focusRequester.requestFocus() 
+            hasRequestedFocus = true
+        }
+    }
 
     NewsBackground(Modifier.fillMaxSize()) {
         Scaffold(
