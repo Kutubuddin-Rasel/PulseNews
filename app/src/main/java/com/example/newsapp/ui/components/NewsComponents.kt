@@ -50,9 +50,20 @@ import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+import com.example.newsapp.data.util.TelemetryManager
 
 val LocalPulseSnackbar = compositionLocalOf<SnackbarHostState> {
     error("No SnackbarHostState provided.")
+}
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface TelemetryEntryPoint {
+    fun telemetryManager(): TelemetryManager
 }
 
 enum class ArticleCardVariant { Standard, Featured, Compact }
@@ -83,6 +94,10 @@ fun ArticleCard(
         animationSpec = tween(NewsMotion.fast, easing = NewsMotion.standardEasing),
         label = "press"
     )
+    val context = LocalContext.current
+    val telemetryManager = remember(context) {
+        EntryPointAccessors.fromApplication(context.applicationContext, TelemetryEntryPoint::class.java).telemetryManager()
+    }
 
     Surface(
         modifier = modifier
@@ -93,6 +108,7 @@ fun ArticleCard(
             .border(NewsStroke.thin, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(NewsRadius.card))
             .clickable(interactionSource = interaction, indication = LocalIndication.current) {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                telemetryManager.trackClick(article.backendId ?: article.url, 0)
                 onClick()
             }
             .semantics(mergeDescendants = true) {},

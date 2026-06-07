@@ -9,8 +9,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-
 import android.content.Context
+import java.util.ArrayDeque
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.delay
+import com.example.newsapp.domain.model.UiEvent
 
 
 data class AlgorithmWeightsUiState(
@@ -44,6 +48,19 @@ class AlgorithmPreferencesViewModel @Inject constructor(
         }
     }
 
+    private val _events = MutableSharedFlow<UiEvent>()
+    val events: SharedFlow<UiEvent> = _events
+
+    private var updateJob: kotlinx.coroutines.Job? = null
+    
+    // Rate Limiting (5 requests per 5 minutes)
+    private val requestTimestamps = ArrayDeque<Long>()
+    private val MAX_REQUESTS = 5
+    private val TIME_WINDOW_MS = 5 * 60 * 1000L
+    
+    // Debounce
+    private val DEBOUNCE_MS = 2000L
+
     fun updateWeights(tech: Float, politics: Float, global: Float, business: Float, health: Float) {
         val total = tech + politics + global + business + health
         if (total == 0f) return
@@ -54,7 +71,24 @@ class AlgorithmPreferencesViewModel @Inject constructor(
         val normBusiness = business / total
         val normHealth = health / total
         
-        viewModelScope.launch {
+        // Update local UI state immediately so slider feels responsive
+        _uiState.value = AlgorithmWeightsUiState(normTech, normPolitics, normGlobal, normBusiness, normHealth)
+
+        updateJob?.cancel()
+        updateJob = viewModelScope.launch {
+            delay(DEBOUNCE_MS)
+            
+            val now = System.currentTimeMillis()
+            while (requestTimestamps.isNotEmpty() && (now - requestTimestamps.first()) > TIME_WINDOW_MS) {
+                requestTimestamps.removeFirst()
+            }
+            
+            if (requestTimestamps.size >= MAX_REQUESTS) {
+                _events.emit(UiEvent.Generic("Rate limit exceeded. Please wait before adjusting algorithms again."))
+                return@launch
+            }
+            
+            requestTimestamps.addLast(now)
             repository.updatePreferences(normTech, normPolitics, normGlobal, normBusiness, normHealth)
         }
     }

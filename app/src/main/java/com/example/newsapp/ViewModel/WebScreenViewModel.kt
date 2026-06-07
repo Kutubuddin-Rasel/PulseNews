@@ -31,6 +31,7 @@ import com.example.newsapp.data.util.AiSummarizer
 import com.example.newsapp.data.util.AiSummaryResult
 import com.example.newsapp.data.util.nlp.TextRankSummarizer
 import com.example.newsapp.domain.util.ArticleBlock
+import com.example.newsapp.data.util.TelemetryManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOn
 
@@ -64,7 +65,8 @@ class WebScreenViewModel @Inject constructor(
     private val offlineHtmlCache: OfflineHtmlCache,
     private val aiSummarizer: AiSummarizer,
     private val ttsEngine: TtsEngine,
-    private val engagementTracker: EngagementTracker
+    private val engagementTracker: EngagementTracker,
+    private val telemetryManager: TelemetryManager
 ) : ViewModel() {
 
     private val encodedUrl: String = savedStateHandle.get<String>("url").orEmpty()
@@ -259,5 +261,13 @@ class WebScreenViewModel @Inject constructor(
                 engagementTracker.recordArticleRead("general")
             }
         }
+    }
+
+    private val enterTimeMs = System.currentTimeMillis()
+
+    fun recordDwell(scrollDepthPercent: Int) {
+        val durationSeconds = (System.currentTimeMillis() - enterTimeMs) / 1000
+        val backendId = article.value?.backendId ?: decodedUrl
+        telemetryManager.trackDwell(backendId, durationSeconds, scrollDepthPercent)
     }
 }
