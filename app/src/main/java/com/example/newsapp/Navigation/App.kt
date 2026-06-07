@@ -70,7 +70,10 @@ fun App() {
             },
             bottomBar = {
                 if (showBottomBar) {
-                    NavigationBar(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant) {
+                    NavigationBar(
+                        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surface,
+                        tonalElevation = 0.dp,
+                    ) {
                         navItems.forEach { item ->
                             NavigationBarItem(
                                 selected = currentRoute == item.route,
@@ -81,15 +84,17 @@ fun App() {
                                         restoreState = true
                                     }
                                 },
-                                icon = { androidx.compose.material3.Icon(item.icon, contentDescription = item.screenName) },
+                                icon = {
+                                    androidx.compose.material3.Icon(item.icon, contentDescription = item.screenName)
+                                },
                                 label = { Text(item.screenName) },
                                 colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = androidx.compose.material3.MaterialTheme.colorScheme.onSecondaryContainer,
+                                    selectedIconColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
                                     unselectedIconColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                                     selectedTextColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
                                     unselectedTextColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-                                    indicatorColor = androidx.compose.material3.MaterialTheme.colorScheme.secondaryContainer
-                                )
+                                    indicatorColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainer,
+                                ),
                             )
                         }
                     }
@@ -118,9 +123,7 @@ fun App() {
             composable(Routes.notificationPreferences) {
                 NotificationPreferencesScreen(onNavigateBack = { navController.popBackStack() })
             }
-            composable(Routes.algorithmPreferences) {
-                com.example.newsapp.Screen.AlgorithmPreferencesScreen(onNavigateBack = { navController.popBackStack() })
-            }
+
             composable(Routes.algorithmSettings) {
                 AlgorithmSettingsScreen(onNavigateBack = { navController.popBackStack() })
             }

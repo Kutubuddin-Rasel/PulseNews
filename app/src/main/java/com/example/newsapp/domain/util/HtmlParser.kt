@@ -75,7 +75,16 @@ object HtmlParser {
                 }
                 "img" -> {
                     val src = element.attr("src")
-                    if (src.startsWith("http")) blocks.add(ArticleBlock.Image(url = src))
+                    if (src.startsWith("http")) {
+                        // Check if this image is the same as the hero image (ignoring query params)
+                        val srcBase = src.substringBefore("?")
+                        val heroBase = heroImageUrl?.substringBefore("?")
+                        
+                        val isDuplicateHeroImage = heroBase != null && srcBase == heroBase
+                        if (!isDuplicateHeroImage) {
+                            blocks.add(ArticleBlock.Image(url = src))
+                        }
+                    }
                 }
             }
         }
