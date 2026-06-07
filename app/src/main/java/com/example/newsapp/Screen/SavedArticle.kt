@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.example.newsapp.Routes
 import com.example.newsapp.ViewModel.SavedUiEvent
 import com.example.newsapp.ViewModel.SavedViewModel
 import com.example.newsapp.domain.model.UiState
@@ -39,7 +40,11 @@ fun SavedArticle(navController: NavController) {
             when (event) {
                 is SavedUiEvent.Message -> snackbar.showSnackbar(event.value)
                 is SavedUiEvent.UndoDelete -> {
-                    val r = snackbarHostState.showSnackbar("Removed from saved", "Undo", duration = SnackbarDuration.Short)
+                    val r = snackbarHostState.showSnackbar(
+                        message = "Removed from saved", 
+                        actionLabel = "Undo", 
+                        duration = SnackbarDuration.Long,
+                    )
                     if (r == SnackbarResult.ActionPerformed) vm.undoDelete(event.article)
                 }
             }
@@ -61,8 +66,16 @@ fun SavedArticle(navController: NavController) {
                         body = s.message, retryable = s.retryable, onRetry = {},
                     )
                     is UiState.Empty -> EmptyState(
-                        title = "Nothing in ‘Saved’ yet.",
-                        body = "Bookmark stories you want to come back to. They’ll appear here, available offline.",
+                        title = "Nothing in \u2018Saved\u2019 yet.",
+                        body = "Bookmark stories you want to come back to. They\u2019ll appear here, available offline.",
+                        actionText = "Browse top stories",
+                        onAction = {
+                            navController.navigate(Routes.home) {
+                                popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
                     )
                     is UiState.Success -> LazyColumn(
                         Modifier.fillMaxSize(),
@@ -96,11 +109,23 @@ fun SavedArticle(navController: NavController) {
 
 @Composable
 private fun SavedHeader(count: Int) {
+    val countLabel = when (count) {
+        0 -> "NO ARTICLES YET"
+        1 -> "1 ARTICLE"
+        else -> "$count ARTICLES"
+    }
     Column(Modifier.fillMaxWidth().statusBarsPadding().padding(NewsSpacing.lg)) {
-        Text("Saved", style = MaterialTheme.typography.displaySmall,
-            fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onBackground)
+        Text(
+            "Saved",
+            style = MaterialTheme.typography.displaySmall,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
         Spacer(Modifier.height(NewsSpacing.xs))
-        Text("$count articles".uppercase(), style = MetaMono,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            countLabel,
+            style = MetaMono,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

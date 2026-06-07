@@ -24,6 +24,11 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
+import kotlinx.coroutines.flow.collectLatest
+import com.example.newsapp.domain.model.UiEvent
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -39,6 +44,18 @@ fun AlgorithmPreferencesScreen(
     val viewModel: AlgorithmPreferencesViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
+    val context = LocalContext.current
+
+    LaunchedEffect(viewModel) {
+        viewModel.events.collectLatest { event ->
+            when (event) {
+                is UiEvent.Generic -> {
+                    Toast.makeText(context, event.message, Toast.LENGTH_LONG).show()
+                }
+                else -> Unit
+            }
+        }
+    }
 
     Scaffold(
         topBar = {

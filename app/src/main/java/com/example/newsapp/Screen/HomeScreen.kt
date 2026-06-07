@@ -42,7 +42,6 @@ fun HomeScreen(navController: NavController) {
     val savedArticles by vm.savedArticles.collectAsState()
     val categories by vm.dynamicCategories.collectAsState()
     val lastUpdated by vm.lastUpdated.collectAsState()
-    val trendingTopics by vm.trendingTopics.collectAsState()
     val currentFeed = remember(uiState.filter, isAuthenticated) { vm.getFeed(uiState.filter) }
     val articles = currentFeed.collectAsLazyPagingItems()
     val loadState = articles.loadState
