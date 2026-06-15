@@ -2,7 +2,12 @@ package com.example.newsapp.domain.util
 
 import java.util.ArrayDeque
 
-enum class TextType { H1, H2, H3, PARAGRAPH }
+sealed interface TextType {
+    data object H1 : TextType
+    data object H2 : TextType
+    data object H3 : TextType
+    data object PARAGRAPH : TextType
+}
 
 sealed class ArticleBlock {
     data class Text(val content: String, val type: TextType = TextType.PARAGRAPH) : ArticleBlock()

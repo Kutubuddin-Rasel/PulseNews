@@ -3,15 +3,22 @@ package com.example.newsapp.ViewModel
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import androidx.lifecycle.SavedStateHandle
 import androidx.paging.PagingData
-import com.example.newsapp.data.repository.AlgorithmPreferencesRepository
-import com.example.newsapp.data.repository.PrivacyPreferencesRepository
-import com.example.newsapp.data.util.AppTelemetry
-import com.example.newsapp.data.util.AuthManager
-import com.example.newsapp.data.util.LocalEngagementTracker
-import com.example.newsapp.domain.repository.NewsRepository
-import com.example.newsapp.domain.repository.SavedArticleRepository
+import com.example.newsapp.domain.util.AppTelemetry
+import com.example.newsapp.domain.tracker.LocalEngagementTracker
+import com.example.newsapp.domain.usecase.auth.ObserveCurrentUserUseCase
+import com.example.newsapp.domain.usecase.auth.SignInUseCase
+import com.example.newsapp.domain.usecase.core.GetDynamicCategoriesUseCase
+import com.example.newsapp.domain.usecase.core.ObserveTelemetryConsentUseCase
+import com.example.newsapp.domain.usecase.core.SetTelemetryConsentUseCase
+import com.example.newsapp.domain.usecase.news.GetAvailableSourcesUseCase
+import com.example.newsapp.domain.usecase.news.GetFeedUseCase
+import com.example.newsapp.domain.usecase.news.ObserveFeedMetaUseCase
+import com.example.newsapp.domain.usecase.saved.DeleteArticleUseCase
+import com.example.newsapp.domain.usecase.saved.ObserveSavedArticlesUseCase
+import com.example.newsapp.domain.usecase.saved.SaveArticleUseCase
 import com.example.newsapp.module.Article
 import com.example.newsapp.module.Source
+import com.example.newsapp.domain.model.CategoryKey
 import com.google.firebase.auth.FirebaseUser
 import io.mockk.coEvery
 import io.mockk.every
@@ -27,7 +34,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
-import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -42,11 +49,17 @@ class HomeViewModelAuthFlowTest {
     private val testDispatcher = StandardTestDispatcher(testScheduler)
 
     private lateinit var viewModel: HomeViewModel
-    private lateinit var authManager: AuthManager
-    private lateinit var newsRepository: NewsRepository
-    private lateinit var savedArticleRepository: SavedArticleRepository
-    private lateinit var algoPrefsRepo: AlgorithmPreferencesRepository
-    private lateinit var privacyPrefsRepo: PrivacyPreferencesRepository
+    private lateinit var getFeedUseCase: GetFeedUseCase
+    private lateinit var getAvailableSourcesUseCase: GetAvailableSourcesUseCase
+    private lateinit var observeFeedMetaUseCase: ObserveFeedMetaUseCase
+    private lateinit var saveArticleUseCase: SaveArticleUseCase
+    private lateinit var deleteArticleUseCase: DeleteArticleUseCase
+    private lateinit var observeSavedArticlesUseCase: ObserveSavedArticlesUseCase
+    private lateinit var setTelemetryConsentUseCase: SetTelemetryConsentUseCase
+    private lateinit var observeTelemetryConsentUseCase: ObserveTelemetryConsentUseCase
+    private lateinit var observeCurrentUserUseCase: ObserveCurrentUserUseCase
+    private lateinit var signInUseCase: SignInUseCase
+    private lateinit var getDynamicCategoriesUseCase: GetDynamicCategoriesUseCase
     private lateinit var localEngagementTracker: LocalEngagementTracker
     private lateinit var savedStateHandle: SavedStateHandle
     private lateinit var appTelemetry: AppTelemetry
@@ -56,11 +69,19 @@ class HomeViewModelAuthFlowTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        
-        authManager = mockk(relaxed = true)
-        every { authManager.currentUser } returns authStateFlow as kotlinx.coroutines.flow.StateFlow<FirebaseUser?>
 
-        newsRepository = mockk(relaxed = true)
+        getFeedUseCase = mockk(relaxed = true)
+        getAvailableSourcesUseCase = mockk(relaxed = true)
+        observeFeedMetaUseCase = mockk(relaxed = true)
+        saveArticleUseCase = mockk(relaxed = true)
+        deleteArticleUseCase = mockk(relaxed = true)
+        observeSavedArticlesUseCase = mockk(relaxed = true)
+        setTelemetryConsentUseCase = mockk(relaxed = true)
+        observeTelemetryConsentUseCase = mockk(relaxed = true)
+        observeCurrentUserUseCase = mockk(relaxed = true)
+        signInUseCase = mockk(relaxed = true)
+        getDynamicCategoriesUseCase = mockk(relaxed = true)
+
         val dummyArticle = Article(
             url = "https://example.com/auth",
             backendId = "1",
@@ -72,29 +93,31 @@ class HomeViewModelAuthFlowTest {
             title = "Test Title",
             urlToImage = null
         )
-        coEvery { newsRepository.getFeed(any(), any(), any()) } returns flowOf(PagingData.from(listOf(dummyArticle)))
-        coEvery { newsRepository.getAvailableSources() } returns flowOf(emptyList())
-
-        savedArticleRepository = mockk(relaxed = true)
-        algoPrefsRepo = mockk(relaxed = true)
-        every { algoPrefsRepo.preferences } returns flowOf(emptyMap())
-        
-        privacyPrefsRepo = mockk(relaxed = true)
-        every { privacyPrefsRepo.telemetryConsent } returns flowOf(true)
+        every { observeCurrentUserUseCase() } returns authStateFlow
+        coEvery { getFeedUseCase(categoryKey = any(), source = any()) } returns flowOf(PagingData.from(listOf(dummyArticle)))
+        coEvery { getAvailableSourcesUseCase(any()) } returns flowOf(emptyList())
+        every { observeFeedMetaUseCase() } returns flowOf(null)
+        every { observeTelemetryConsentUseCase() } returns flowOf(true)
 
         localEngagementTracker = mockk(relaxed = true)
         savedStateHandle = SavedStateHandle(mapOf("home_category_id" to 1)) // For You
         appTelemetry = mockk(relaxed = true)
 
         viewModel = HomeViewModel(
-            newsRepository = newsRepository,
-            savedArticleRepository = savedArticleRepository,
-            algoPrefsRepo = algoPrefsRepo,
-            privacyPrefsRepo = privacyPrefsRepo,
+            getFeedUseCase = getFeedUseCase,
+            getAvailableSourcesUseCase = getAvailableSourcesUseCase,
+            observeFeedMetaUseCase = observeFeedMetaUseCase,
+            saveArticleUseCase = saveArticleUseCase,
+            deleteArticleUseCase = deleteArticleUseCase,
+            observeSavedArticlesUseCase = observeSavedArticlesUseCase,
+            setTelemetryConsentUseCase = setTelemetryConsentUseCase,
+            observeTelemetryConsentUseCase = observeTelemetryConsentUseCase,
+            observeCurrentUserUseCase = observeCurrentUserUseCase,
+            signInUseCase = signInUseCase,
+            getDynamicCategoriesUseCase = getDynamicCategoriesUseCase,
             localEngagementTracker = localEngagementTracker,
             savedStateHandle = savedStateHandle,
-            appTelemetry = appTelemetry,
-            authManager = authManager
+            appTelemetry = appTelemetry
         )
     }
 
@@ -104,23 +127,23 @@ class HomeViewModelAuthFlowTest {
     }
 
     @Test
-    fun `when authentication state toggles, flow updates are not cached incorrectly`() = runTest {
+    fun `pagingData is a single stream that switches with auth state (F2)`() = runTest {
         // Start unauthenticated
         authStateFlow.value = null
         advanceUntilIdle()
 
-        // Cache the flow by reading it once
-        val firstFlow = viewModel.feed
+        // F2: the feed is one stable stream — not a per-(filter, auth) cached flow.
+        val firstFlow = viewModel.pagingData
 
         // Sign in
         authStateFlow.value = mockk<FirebaseUser>(relaxed = true)
         advanceUntilIdle()
 
-        // Read again, if it's cached it'll be the same empty flow reference incorrectly tied to category 1 filter state
-        val secondFlow = viewModel.feed
+        val secondFlow = viewModel.pagingData
 
-        // We expect the internal cache to use authentication state as part of the key.
-        // Since `feed` is a val property, its reference doesn't change, so we don't assert instance equality here.
-        org.junit.Assert.assertNotNull(secondFlow)
+        assertNotNull(secondFlow)
+        // Same instance across auth toggles: switching is internal (flatMapLatest), so there is no
+        // unbounded map of cached flows accumulating one entry per visited combination.
+        org.junit.Assert.assertSame(firstFlow, secondFlow)
     }
 }

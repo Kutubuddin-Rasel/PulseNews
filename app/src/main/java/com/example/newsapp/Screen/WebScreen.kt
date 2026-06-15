@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.LaunchedEffect
@@ -256,10 +257,26 @@ fun WebScreen(navController: NavController) {
                                     color = MaterialTheme.colorScheme.onBackground
                                 )
                                 Spacer(modifier = Modifier.height(NewsSpacing.lg))
-                                com.example.newsapp.ui.components.AiSummaryCard(aiState = aiSummaryState)
+                                com.example.newsapp.ui.components.AiSummaryCard(
+                                    aiState = aiSummaryState,
+                                    onSummarizeClick = { viewModel.requestSummary() }
+                                )
                                 Spacer(modifier = Modifier.height(NewsSpacing.lg))
                             }
-                            items(state.article.blocks) { block ->
+                            // LST1: key on the (immutable, never-reordered) block index and tag each
+                            // block by type so the lazy list recycles compositions only among
+                            // like-typed blocks (Text↔Text, Image↔Image) instead of rebuilding.
+                            itemsIndexed(
+                                items = state.article.blocks,
+                                key = { index, _ -> index },
+                                contentType = { _, block ->
+                                    when (block) {
+                                        is com.example.newsapp.domain.util.ArticleBlock.Text -> "text"
+                                        is com.example.newsapp.domain.util.ArticleBlock.Image -> "image"
+                                        is com.example.newsapp.domain.util.ArticleBlock.Video -> "video"
+                                    }
+                                }
+                            ) { _, block ->
                                 when (block) {
                                     is com.example.newsapp.domain.util.ArticleBlock.Text -> {
                                         val style = when (block.type) {

@@ -6,7 +6,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.newsapp.Api.PulseBackendApi
 import com.example.newsapp.data.remote.dto.BookmarkRequest
-import com.example.newsapp.data.util.DeviceIdProvider
+import com.example.newsapp.domain.util.DeviceIdProvider
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import retrofit2.HttpException
@@ -27,7 +27,8 @@ class BookmarkSyncWorker @AssistedInject constructor(
         return try {
             val deviceId = deviceIdProvider.deviceId
             val response = if (action == ACTION_ADD) {
-                pulseBackendApi.addBookmark(deviceId, BookmarkRequest(articleId))
+                val idempotencyKey = inputData.getString(KEY_IDEMPOTENCY_KEY) ?: return Result.failure()
+                pulseBackendApi.addBookmark(idempotencyKey, deviceId, BookmarkRequest(articleId))
             } else {
                 pulseBackendApi.removeBookmark(deviceId, articleId)
             }
@@ -57,6 +58,7 @@ class BookmarkSyncWorker @AssistedInject constructor(
     companion object {
         const val KEY_ARTICLE_ID = "article_id"
         const val KEY_ACTION = "action"
+        const val KEY_IDEMPOTENCY_KEY = "idempotency_key"
         const val ACTION_ADD = "ADD"
         const val ACTION_DELETE = "DELETE"
     }

@@ -124,7 +124,7 @@ fun ReaderErrorPanel(
     Surface(
         modifier = Modifier.fillMaxWidth().padding(NewsSpacing.lg),
         color = MaterialTheme.colorScheme.errorContainer,
-        shape = RoundedCornerShape(NewsRadius.card),
+        shape = MaterialTheme.shapes.large,
     ) {
         Column(
             Modifier.padding(NewsSpacing.lg),
@@ -139,10 +139,10 @@ fun ReaderErrorPanel(
             Text(message, style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer)
             Row(horizontalArrangement = Arrangement.spacedBy(NewsSpacing.sm)) {
-                Button(onClick = onRetry, shape = RoundedCornerShape(NewsRadius.pill)) {
+                Button(onClick = onRetry) {
                     Text("Retry")
                 }
-                OutlinedButton(onClick = onOpenExternal, shape = RoundedCornerShape(NewsRadius.pill)) {
+                OutlinedButton(onClick = onOpenExternal) {
                     Text("Open in browser")
                 }
             }

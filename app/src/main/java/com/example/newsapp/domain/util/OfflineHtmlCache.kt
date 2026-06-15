@@ -41,6 +41,16 @@ class OfflineHtmlCache @Inject constructor(
         }
     }
 
+    /**
+     * Persists already-fetched HTML so the reader can serve it cache-first on later opens (W5),
+     * avoiding a second network round-trip for content it just downloaded.
+     */
+    suspend fun cacheHtml(url: String, html: String) = withContext(Dispatchers.IO) {
+        if (html.isNotBlank()) {
+            runCatching { getFileForUrl(url).writeText(html) }
+        }
+    }
+
     suspend fun getCachedHtml(url: String): String? = withContext(Dispatchers.IO) {
         val file = getFileForUrl(url)
         if (file.exists()) {

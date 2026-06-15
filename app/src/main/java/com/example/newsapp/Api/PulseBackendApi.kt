@@ -14,6 +14,7 @@ import retrofit2.http.DELETE
 import retrofit2.http.Path
 import retrofit2.http.Body
 import retrofit2.http.Header
+import retrofit2.http.Headers
 
 interface PulseBackendApi {
     @GET("api/news")
@@ -24,6 +25,7 @@ interface PulseBackendApi {
         @Query("edition") edition: String? = null
     ): Response<List<PulseArticleDto>>
 
+    @Headers("X-Pulse-Auth: required")
     @GET("api/news/foryou")
     suspend fun getForYouFeed(
         @Query("page") page: Int?, 
@@ -44,15 +46,23 @@ interface PulseBackendApi {
     @GET("api/news/trending")
     suspend fun getTrendingTopics(): Response<List<TrendingTopicDto>>
 
+    @Headers("X-Pulse-Auth: required")
     @GET("api/bookmarks")
-    suspend fun getBookmarks(@Header("x-device-id") deviceId: String): Response<List<PulseArticleDto>>
+    suspend fun getBookmarks(
+        @Header("x-device-id") deviceId: String,
+        @Query("limit") limit: Int? = null,
+        @Query("cursor") cursor: String? = null
+    ): Response<com.example.newsapp.data.remote.dto.PaginatedBookmarksDto>
 
+    @Headers("X-Pulse-Auth: required")
     @POST("api/bookmarks")
     suspend fun addBookmark(
+        @Header("Idempotency-Key") idempotencyKey: String,
         @Header("x-device-id") deviceId: String,
         @Body request: BookmarkRequest
     ): Response<Unit>
 
+    @Headers("X-Pulse-Auth: required")
     @DELETE("api/bookmarks/{articleId}")
     suspend fun removeBookmark(
         @Header("x-device-id") deviceId: String,
@@ -62,14 +72,17 @@ interface PulseBackendApi {
     @GET("api/taxonomy")
     suspend fun getTaxonomy(): Response<TaxonomyDto>
 
+    @Headers("X-Pulse-Auth: required")
     @POST("api/news/telemetry")
     suspend fun postInteractions(
-        @Header("x-device-id") deviceId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
         @Body request: TelemetryBatchRequest
     ): Response<Unit>
 
+    @Headers("X-Pulse-Auth: required")
     @POST("api/news/{id}/summary")
     suspend fun getAiSummary(
+        @Header("Idempotency-Key") idempotencyKey: String,
         @Path("id") articleId: String,
         @Body request: com.example.newsapp.data.remote.dto.AiSummaryRequest
     ): Response<com.example.newsapp.data.remote.dto.AiSummaryResponse>

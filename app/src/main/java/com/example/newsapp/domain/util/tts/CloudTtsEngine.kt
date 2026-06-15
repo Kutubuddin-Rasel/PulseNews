@@ -22,4 +22,8 @@ class CloudTtsEngine @Inject constructor(
         
         return nativeFallback.synthesizeToUri(text, articleId)
     }
+
+    override fun release() {
+        nativeFallback.release()
+    }
 }

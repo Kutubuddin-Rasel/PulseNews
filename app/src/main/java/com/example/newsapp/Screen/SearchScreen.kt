@@ -44,17 +44,34 @@ import com.example.newsapp.ui.components.PagingFooter
 import com.example.newsapp.ui.theme.MetaMono
 import com.example.newsapp.ui.tokens.*
 
+import com.example.newsapp.ViewModel.SearchUiState
+import com.example.newsapp.ViewModel.SearchEvent
+import com.example.newsapp.domain.model.TrendingTopic
+
+@Composable
+fun SearchRoute(navController: NavController) {
+    val viewModel: SearchViewModel = hiltViewModel()
+    val state by viewModel.state.collectAsState()
+    val searchResults = viewModel.searchResults.collectAsLazyPagingItems()
+
+    SearchScreen(
+        state = state,
+        searchResults = searchResults,
+        onEvent = viewModel::onEvent,
+        onNavigateBack = { navController.popBackStack() },
+        onNavigateToArticleDetail = { url -> navController.navigateToArticleDetail(url) }
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SearchScreen(
-    navController: NavController,
-    viewModel: SearchViewModel = hiltViewModel(),
+    state: SearchUiState,
+    searchResults: LazyPagingItems<Article>,
+    onEvent: (SearchEvent) -> Unit,
+    onNavigateBack: () -> Unit,
+    onNavigateToArticleDetail: (String) -> Unit
 ) {
-    val query by viewModel.searchQuery.collectAsState()
-    val trendingTopics by viewModel.trendingTopics.collectAsState()
-    val recentSearches by viewModel.recentSearches.collectAsState()
-    val searchResults = viewModel.searchResults.collectAsLazyPagingItems()
-
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val haptic = LocalHapticFeedback.current
@@ -82,7 +99,7 @@ fun SearchScreen(
                             )
                         },
                         navigationIcon = {
-                            IconButton(onClick = { navController.popBackStack() }) {
+                            IconButton(onClick = onNavigateBack) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.ArrowBack,
                                     contentDescription = "Back",
@@ -94,11 +111,11 @@ fun SearchScreen(
                         ),
                     )
                     SearchField(
-                        value = query,
-                        onValueChange = viewModel::onQueryChange,
-                        onClear = viewModel::clearQuery,
+                        value = state.searchQuery,
+                        onValueChange = { onEvent(SearchEvent.OnQueryChange(it)) },
+                        onClear = { onEvent(SearchEvent.ClearQuery) },
                         onSubmit = {
-                            viewModel.recordRecentSearch(query)
+                            onEvent(SearchEvent.RecordRecentSearch(state.searchQuery))
                             focusManager.clearFocus()
                         },
                         focusRequester = focusRequester,
@@ -110,24 +127,24 @@ fun SearchScreen(
             },
         ) { padding ->
             Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-                if (query.isBlank()) {
+                if (state.searchQuery.isBlank()) {
                     EmptyQueryView(
-                        recentSearches = recentSearches,
-                        trendingTags = trendingTopics.map { it.tag },
+                        recentSearches = state.recentSearches,
+                        trendingTags = state.trendingTopics,
                         onSearchSelected = { selected ->
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            viewModel.onQueryChange(selected)
-                            viewModel.recordRecentSearch(selected)
+                            onEvent(SearchEvent.OnQueryChange(selected))
+                            onEvent(SearchEvent.RecordRecentSearch(selected))
                             focusManager.clearFocus()
                         },
-                        onClearRecents = viewModel::clearRecentSearches,
+                        onClearRecents = { onEvent(SearchEvent.ClearRecentSearches) },
                     )
                 } else {
                     SearchResultsView(
                         results = searchResults,
-                        query = query,
-                        onArticleClick = { url -> navController.navigateToArticleDetail(url) },
-                        onClearQuery = viewModel::clearQuery,
+                        query = state.searchQuery,
+                        onArticleClick = { url -> onNavigateToArticleDetail(url) },
+                        onClearQuery = { onEvent(SearchEvent.ClearQuery) },
                     )
                 }
             }
@@ -203,7 +220,7 @@ private fun SearchField(
 @Composable
 private fun EmptyQueryView(
     recentSearches: List<String>,
-    trendingTags: List<String>,
+    trendingTags: List<TrendingTopic>,
     onSearchSelected: (String) -> Unit,
     onClearRecents: () -> Unit,
 ) {
@@ -237,6 +254,9 @@ private fun EmptyQueryView(
         }
 
         if (trendingTags.isNotEmpty()) {
+            val maxCount = trendingTags.maxOfOrNull { it.count } ?: 1
+            val minCount = trendingTags.minOfOrNull { it.count } ?: 0
+            
             Column(verticalArrangement = Arrangement.spacedBy(NewsSpacing.md)) {
                 Text(
                     "TRENDING NOW",
@@ -247,8 +267,20 @@ private fun EmptyQueryView(
                     horizontalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
                     verticalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
                 ) {
-                    trendingTags.forEach { tag ->
-                        TrendingChip(label = tag, onClick = { onSearchSelected(tag) })
+                    trendingTags.forEach { topic ->
+                        val normalized = if (maxCount > minCount) {
+                            (topic.count - minCount).toFloat() / (maxCount - minCount)
+                        } else 0.5f
+                        
+                        val alpha = 0.6f + (0.4f * normalized)
+                        val weight = if (normalized > 0.8f) FontWeight.ExtraBold else FontWeight.Normal
+                        
+                        TrendingChip(
+                            topic = topic, 
+                            alpha = alpha,
+                            fontWeight = weight,
+                            onClick = { onSearchSelected(topic.tag) }
+                        )
                     }
                 }
             }
@@ -297,11 +329,22 @@ private fun RecentSearchRow(term: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun TrendingChip(label: String, onClick: () -> Unit) {
+private fun TrendingChip(
+    topic: TrendingTopic, 
+    alpha: Float,
+    fontWeight: FontWeight,
+    onClick: () -> Unit
+) {
+    val formattedCount = if (topic.count > 999) {
+        String.format("%.1fk", topic.count / 1000f)
+    } else {
+        topic.count.toString()
+    }
+
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(NewsRadius.pill),
-        color = MaterialTheme.colorScheme.tertiaryContainer,
+        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = alpha),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -311,13 +354,14 @@ private fun TrendingChip(label: String, onClick: () -> Unit) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.TrendingUp,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                tint = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = alpha),
                 modifier = Modifier.size(14.dp),
             )
             Text(
-                text = label,
+                text = "${topic.tag} ($formattedCount)",
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                fontWeight = fontWeight,
+                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = alpha),
             )
         }
     }
@@ -368,6 +412,7 @@ private fun SearchResultsView(
                     if (article != null) {
                         ArticleCard(
                             article = article,
+                            index = index,
                             onClick = { onArticleClick(article.url ?: "") },
                         )
                     }

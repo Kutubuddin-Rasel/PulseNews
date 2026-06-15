@@ -12,21 +12,20 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import retrofit2.Response
-import com.example.newsapp.Room.ArticleDatabase
 
 class SearchPagingSourceTest {
 
     private lateinit var api: PulseBackendApi
     private lateinit var connectivityMonitor: ConnectivityMonitor
-    private lateinit var database: ArticleDatabase
+    private lateinit var searchResultCache: SearchResultCache
     private lateinit var pagingSource: SearchPagingSource
 
     @Before
     fun setup() {
         api = mockk()
         connectivityMonitor = mockk()
-        database = mockk(relaxed = true)
-        pagingSource = SearchPagingSource(api, connectivityMonitor, database, "test query")
+        searchResultCache = mockk(relaxed = true)
+        pagingSource = SearchPagingSource(api, connectivityMonitor, searchResultCache, "test query")
     }
 
     @Test

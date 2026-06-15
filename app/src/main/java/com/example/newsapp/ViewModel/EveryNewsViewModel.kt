@@ -20,11 +20,12 @@ import kotlinx.coroutines.flow.flatMapLatest
 import androidx.paging.cachedIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import com.example.newsapp.domain.usecase.news.SearchNewsUseCase
 
 @OptIn(FlowPreview::class)
 @HiltViewModel
 class EveryNewsViewModel @Inject constructor(
-    private val newsRepository: NewsRepository,
+    private val searchNewsUseCase: SearchNewsUseCase,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -39,7 +40,7 @@ class EveryNewsViewModel @Inject constructor(
         .debounce(300)
         .distinctUntilChanged()
         .flatMapLatest { query ->
-            newsRepository.searchNews(query = query.topic)
+            searchNewsUseCase(query = query.topic)
         }
         .cachedIn(viewModelScope)
 

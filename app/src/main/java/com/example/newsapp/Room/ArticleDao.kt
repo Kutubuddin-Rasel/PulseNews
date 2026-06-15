@@ -21,6 +21,9 @@ interface ArticleDao {
     @Delete
     suspend fun delete(article: Article)
 
+    @Query("DELETE FROM saved_articles WHERE url = :url")
+    suspend fun deleteByUrl(url: String)
+
     @Query("SELECT EXISTS(SELECT 1 FROM saved_articles WHERE url = :url)")
     suspend fun isSaved(url: String): Boolean
 

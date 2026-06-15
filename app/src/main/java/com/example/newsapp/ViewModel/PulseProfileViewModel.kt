@@ -2,7 +2,7 @@ package com.example.newsapp.ViewModel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.newsapp.data.util.EngagementTracker
+import com.example.newsapp.domain.tracker.EngagementTracker
 import com.example.newsapp.domain.model.GamificationProfile
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
-import com.example.newsapp.data.util.AuthManager
+import com.example.newsapp.domain.repository.AuthRepository
 import kotlinx.coroutines.launch
 
 import com.example.newsapp.domain.model.UiEvent
@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.SharedFlow
 @HiltViewModel
 class PulseProfileViewModel @Inject constructor(
     engagementTracker: EngagementTracker,
-    private val authManager: AuthManager
+    private val authManager: AuthRepository
 ) : ViewModel() {
 
     private val _events = MutableSharedFlow<UiEvent>()

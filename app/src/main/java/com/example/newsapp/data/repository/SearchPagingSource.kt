@@ -6,15 +6,13 @@ import com.example.newsapp.Api.PulseBackendApi
 import com.example.newsapp.data.mapper.toDomainOrNull
 import com.example.newsapp.domain.util.ConnectivityMonitor
 import com.example.newsapp.module.Article
-import com.example.newsapp.data.mapper.toCacheEntity
-import com.example.newsapp.Room.ArticleDatabase
 import retrofit2.HttpException
 import java.io.IOException
 
 class SearchPagingSource(
     private val api: PulseBackendApi,
     private val connectivityMonitor: ConnectivityMonitor,
-    private val database: ArticleDatabase,
+    private val searchResultCache: SearchResultCache,
     private val query: String
 ) : PagingSource<Int, Article>() {
 
@@ -37,13 +35,19 @@ class SearchPagingSource(
             if (response.isSuccessful) {
                 val dtos = response.body() ?: emptyList()
                 val articles = dtos.mapNotNull { it.toDomainOrNull() }
-                
-                // Cache the search results in the database so ArticleDetailScreen can find them locally
-                val fetchedAt = System.currentTimeMillis()
-                val cacheEntities = articles.mapIndexed { index, article -> 
-                    article.toCacheEntity("search", (page - 1) * params.loadSize + index, fetchedAt) 
+                // CONF5: log silent drops so a contract regression is observable, not invisible.
+                val dropped = dtos.size - articles.size
+                if (dropped > 0) {
+                    android.util.Log.w(
+                        "ArticleMapper",
+                        "Dropped $dropped/${dtos.size} search articles (query=$query) — missing link/title"
+                    )
                 }
-                database.cachedFeedDao().upsertAll(cacheEntities)
+
+                // S3: persistence is delegated to SearchResultCache (SRP) — this source's only job
+                // is to turn a query+page into a LoadResult. The cache owns the F1 clear-on-new-search
+                // policy so the local search partition can't grow without bound.
+                searchResultCache.cache(articles, page, params.loadSize)
                 
                 val nextKey = if (dtos.isEmpty() || dtos.size < params.loadSize) {
                     null

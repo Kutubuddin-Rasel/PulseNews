@@ -4,8 +4,8 @@ import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.example.newsapp.data.util.AppTelemetry
-import com.example.newsapp.data.util.LocalEngagementTracker
+import com.example.newsapp.domain.util.AppTelemetry
+import com.example.newsapp.domain.tracker.LocalEngagementTracker
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first

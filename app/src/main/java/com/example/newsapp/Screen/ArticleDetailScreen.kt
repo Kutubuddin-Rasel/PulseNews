@@ -41,50 +41,88 @@ import com.example.newsapp.ui.theme.ReaderBody
 import com.example.newsapp.ui.theme.ReaderLead
 import com.example.newsapp.ui.tokens.*
 
+import com.example.newsapp.ViewModel.ArticleDetailUiState
+import com.example.newsapp.ViewModel.ArticleDetailEvent
+import androidx.paging.PagingData
+import com.example.newsapp.module.Article
+import kotlinx.coroutines.flow.Flow
+
+@Composable
+fun ArticleDetailRoute(navController: NavController) {
+    val vm: ArticleDetailViewModel = hiltViewModel()
+    val state by vm.state.collectAsState()
+    
+    val relatedPerspectives = vm.relatedPerspectives.collectAsLazyPagingItems()
+
+    ArticleDetailScreen(
+        state = state,
+        onEvent = vm::onEvent,
+        decodedUrl = vm.decodedUrl,
+        relatedPerspectives = relatedPerspectives,
+        onNavigateUp = { navController.navigateUp() },
+        onNavigateToWebPage = { url -> navController.navigateToWebPage(url) },
+        onNavigateToArticleDetail = { url -> navController.navigateToArticleDetail(url) }
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ArticleDetailScreen(navController: NavController) {
-    val vm: ArticleDetailViewModel = hiltViewModel()
-    val article by vm.article.collectAsState()
-    val isSaved by vm.isSaved.collectAsState()
-    val aiState by vm.aiState.collectAsState()
+fun ArticleDetailScreen(
+    state: ArticleDetailUiState,
+    onEvent: (ArticleDetailEvent) -> Unit,
+    decodedUrl: String,
+    relatedPerspectives: androidx.paging.compose.LazyPagingItems<Article>,
+    onNavigateUp: () -> Unit,
+    onNavigateToWebPage: (String) -> Unit,
+    onNavigateToArticleDetail: (String) -> Unit
+) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val scrollState = rememberScrollState()
-
     val snackbar = LocalPulseSnackbar.current
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(vm) {
-        vm.events.collect {
-            val msg = when (val e = it) {
-                is UiEvent.AlreadySaved, is UiEvent.Saved, is UiEvent.DeleteFailed,
-                is UiEvent.NetworkError, is UiEvent.Generic -> e.message
-            }
+    LaunchedEffect(state.snackbarMessage) {
+        state.snackbarMessage?.let { msg ->
             snackbar.showSnackbar(msg)
+            onEvent(ArticleDetailEvent.SnackbarConsumed)
+        }
+    }
+
+    DisposableEffect(Unit) {
+        val startTime = System.currentTimeMillis()
+        onDispose {
+            val endTime = System.currentTimeMillis()
+            val durationSeconds = (endTime - startTime) / 1000L
+            val scrollDepthPercent = if (scrollState.maxValue == 0) {
+                0
+            } else {
+                ((scrollState.value.toFloat() / scrollState.maxValue.toFloat()) * 100).toInt()
+            }
+            onEvent(ArticleDetailEvent.LogReadDeep(durationSeconds, scrollDepthPercent))
         }
     }
 
     NewsBackground(Modifier.fillMaxSize()) {
-        val item = article ?: return@NewsBackground EmptyState(
+        val item = state.article ?: return@NewsBackground EmptyState(
             title = "Article unavailable.",
             body = "We couldn’t load a preview. Open it in your browser to read the full piece.",
             actionText = "Open Reader",
-            onAction = { navController.navigateToWebPage(vm.decodedUrl) },
+            onAction = { onNavigateToWebPage(decodedUrl) },
         )
 
         val progress = if (scrollState.maxValue == 0) 0f
             else scrollState.value.toFloat() / scrollState.maxValue
-        val sourceLabel = listOfNotNull(item.source.name, item.taxonomy?.categories?.firstOrNull()).joinToString(" · ")
+        val sourceLabel = listOfNotNull(item.source?.name, item.taxonomy?.categories?.firstOrNull()).joinToString(" · ")
 
         Scaffold(
             topBar = {
                 Column {
                     ReaderTopBar(
                         sourceLabel = sourceLabel,
-                        isSaved = isSaved,
-                        onBack = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); navController.navigateUp() },
-                        onToggleSave = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); vm.toggleSaved() },
+                        isSaved = state.isSaved,
+                        onBack = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onNavigateUp() },
+                        onToggleSave = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onEvent(ArticleDetailEvent.ToggleSaved) },
                         onShare = {
                             val sendIntent = Intent().apply {
                                 action = Intent.ACTION_SEND
@@ -124,7 +162,7 @@ fun ArticleDetailScreen(navController: NavController) {
                     Button(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            navController.navigateToWebPage(item.url)
+                            item.url?.let { onNavigateToWebPage(it) }
                         },
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                         shape = RoundedCornerShape(NewsRadius.pill),
@@ -170,7 +208,7 @@ fun ArticleDetailScreen(navController: NavController) {
                 Spacer(Modifier.height(NewsSpacing.lg))
 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(item.source.name.uppercase(), style = MetaMono, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(item.source?.name.orEmpty().uppercase(), style = MetaMono, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (item.provenance?.status == VerificationStatus.SOURCE_VERIFIED) {
                         Box(Modifier.size(8.dp).clip(androidx.compose.foundation.shape.CircleShape)
                             .background(MaterialTheme.colorScheme.primary))
@@ -178,36 +216,39 @@ fun ArticleDetailScreen(navController: NavController) {
                     }
                 }
                 Spacer(Modifier.height(NewsSpacing.xs))
-                Text(formatDate(item.publishedAt).uppercase(),
+                Text(formatDate(item.publishedAt ?: "").uppercase(),
                     style = MetaMono, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .7f))
 
                 Spacer(Modifier.height(NewsSpacing.md))
-                Text(item.title, style = MaterialTheme.typography.displaySmall,
+                Text(item.title ?: "", style = MaterialTheme.typography.displaySmall,
                     fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onBackground)
 
                 if (!item.description.isNullOrBlank()) {
                     Spacer(Modifier.height(NewsSpacing.md))
                     Text(
-                        text = item.description!!,
+                        text = item.description,
                         style = ReaderLead,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
-                Spacer(Modifier.height(NewsSpacing.lg))
-                AiSummaryCard(aiState = aiState)
+                // This screen never generates a summary (aiState stays Idle), so the card only
+                // renders if one is ever supplied — avoids showing a dead "Summarize" action here.
+                if (state.aiState !is com.example.newsapp.ViewModel.AiState.Idle) {
+                    Spacer(Modifier.height(NewsSpacing.lg))
+                    AiSummaryCard(aiState = state.aiState, onSummarizeClick = {})
+                }
 
                 if (!item.content.isNullOrBlank()) {
                     Spacer(Modifier.height(NewsSpacing.lg))
                     Text(
-                        text = item.content!!,
+                        text = item.content,
                         style = ReaderBody,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
 
-                val related = vm.relatedPerspectives.collectAsLazyPagingItems()
-                if (related.itemCount > 0) {
+                if (relatedPerspectives.itemCount > 0) {
                     Spacer(Modifier.height(NewsSpacing.xl))
                     Text("Related perspectives", style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onBackground)
@@ -216,12 +257,13 @@ fun ArticleDetailScreen(navController: NavController) {
                         horizontalArrangement = Arrangement.spacedBy(NewsSpacing.sm),
                         contentPadding = PaddingValues(end = NewsSpacing.lg),
                     ) {
-                        items(count = related.itemCount, key = { related.peek(it)?.url ?: it }) { i ->
-                            related[i]?.let { r ->
+                        items(count = relatedPerspectives.itemCount, key = { relatedPerspectives.peek(it)?.url ?: it }) { i ->
+                            relatedPerspectives[i]?.let { r ->
                                 Surface(
                                     onClick = {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        navController.navigateToArticleDetail(r.url ?: "")
+                                        onEvent(ArticleDetailEvent.LogRelatedClick(r.backendId ?: r.url ?: ""))
+                                        onNavigateToArticleDetail(r.url ?: "")
                                     },
                                     modifier = Modifier.width(240.dp),
                                     color = MaterialTheme.colorScheme.surfaceContainerLowest,
@@ -229,7 +271,7 @@ fun ArticleDetailScreen(navController: NavController) {
                                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                                 ) {
                                     Column(Modifier.padding(NewsSpacing.md), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Text(r.source.name.orEmpty().uppercase(),
+                                        Text(r.source?.name.orEmpty().uppercase(),
                                             style = MetaMono, color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         Text(r.title.orEmpty(),

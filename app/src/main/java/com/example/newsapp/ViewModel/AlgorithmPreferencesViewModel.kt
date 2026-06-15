@@ -2,42 +2,55 @@ package com.example.newsapp.ViewModel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.newsapp.data.repository.AlgorithmPreferencesRepository
+import com.example.newsapp.Hilt.ApplicationScope
+import com.example.newsapp.domain.repository.AlgorithmPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import android.content.Context
 import java.util.ArrayDeque
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.delay
-import com.example.newsapp.domain.model.UiEvent
 
+sealed interface AlgorithmWeightsUiState {
+    data object Loading : AlgorithmWeightsUiState
+    data class Content(
+        val tech: Float = 0.2f,
+        val politics: Float = 0.2f,
+        val global: Float = 0.2f,
+        val business: Float = 0.2f,
+        val health: Float = 0.2f,
+        val errorMessage: String? = null
+    ) : AlgorithmWeightsUiState
+}
 
-data class AlgorithmWeightsUiState(
-    val tech: Float = 0.2f,
-    val politics: Float = 0.2f,
-    val global: Float = 0.2f,
-    val business: Float = 0.2f,
-    val health: Float = 0.2f
-)
-
+sealed interface AlgorithmPreferencesEvent {
+    data class UpdateWeights(
+        val tech: Float,
+        val politics: Float,
+        val global: Float,
+        val business: Float,
+        val health: Float
+    ) : AlgorithmPreferencesEvent
+    data object SaveAndRecalculate : AlgorithmPreferencesEvent
+    data object ErrorShown : AlgorithmPreferencesEvent
+}
 
 @HiltViewModel
 class AlgorithmPreferencesViewModel @Inject constructor(
-    private val repository: AlgorithmPreferencesRepository
+    private val repository: AlgorithmPreferencesRepository,
+    @ApplicationScope private val appScope: CoroutineScope
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(AlgorithmWeightsUiState())
+    private val _uiState = MutableStateFlow<AlgorithmWeightsUiState>(AlgorithmWeightsUiState.Loading)
     val uiState: StateFlow<AlgorithmWeightsUiState> = _uiState
 
     init {
         viewModelScope.launch {
             repository.preferences.collectLatest { prefs ->
-                _uiState.value = AlgorithmWeightsUiState(
+                _uiState.value = AlgorithmWeightsUiState.Content(
                     tech = prefs["technology"] ?: 0.2f,
                     politics = prefs["politics"] ?: 0.2f,
                     global = prefs["general"] ?: 0.2f,
@@ -47,9 +60,6 @@ class AlgorithmPreferencesViewModel @Inject constructor(
             }
         }
     }
-
-    private val _events = MutableSharedFlow<UiEvent>()
-    val events: SharedFlow<UiEvent> = _events
 
     private var updateJob: kotlinx.coroutines.Job? = null
     
@@ -61,7 +71,24 @@ class AlgorithmPreferencesViewModel @Inject constructor(
     // Debounce
     private val DEBOUNCE_MS = 2000L
 
-    fun updateWeights(tech: Float, politics: Float, global: Float, business: Float, health: Float) {
+    fun onEvent(event: AlgorithmPreferencesEvent) {
+        when (event) {
+            is AlgorithmPreferencesEvent.UpdateWeights -> {
+                updateWeights(event.tech, event.politics, event.global, event.business, event.health)
+            }
+            is AlgorithmPreferencesEvent.SaveAndRecalculate -> {
+                saveAndRecalculate()
+            }
+            is AlgorithmPreferencesEvent.ErrorShown -> {
+                val currentState = _uiState.value
+                if (currentState is AlgorithmWeightsUiState.Content) {
+                    _uiState.value = currentState.copy(errorMessage = null)
+                }
+            }
+        }
+    }
+
+    private fun updateWeights(tech: Float, politics: Float, global: Float, business: Float, health: Float) {
         val total = tech + politics + global + business + health
         if (total == 0f) return
         
@@ -71,8 +98,18 @@ class AlgorithmPreferencesViewModel @Inject constructor(
         val normBusiness = business / total
         val normHealth = health / total
         
+        val currentState = _uiState.value
+        val errorMsg = if (currentState is AlgorithmWeightsUiState.Content) currentState.errorMessage else null
+        
         // Update local UI state immediately so slider feels responsive
-        _uiState.value = AlgorithmWeightsUiState(normTech, normPolitics, normGlobal, normBusiness, normHealth)
+        _uiState.value = AlgorithmWeightsUiState.Content(
+            tech = normTech, 
+            politics = normPolitics, 
+            global = normGlobal, 
+            business = normBusiness, 
+            health = normHealth,
+            errorMessage = errorMsg
+        )
 
         updateJob?.cancel()
         updateJob = viewModelScope.launch {
@@ -84,7 +121,10 @@ class AlgorithmPreferencesViewModel @Inject constructor(
             }
             
             if (requestTimestamps.size >= MAX_REQUESTS) {
-                _events.emit(UiEvent.Generic("Rate limit exceeded. Please wait before adjusting algorithms again."))
+                val state = _uiState.value
+                if (state is AlgorithmWeightsUiState.Content) {
+                    _uiState.value = state.copy(errorMessage = "Rate limit exceeded. Please wait before adjusting algorithms again.")
+                }
                 return@launch
             }
             
@@ -93,8 +133,18 @@ class AlgorithmPreferencesViewModel @Inject constructor(
         }
     }
 
-    fun saveAndRecalculate() {
-        // Pending decision: this screen is obsolete as backend handles sorting.
-        // For now, it just saves the preferences to the repository.
+    private fun saveAndRecalculate() {
+        // ALG2: sliders persist on a 2s debounce, so tapping "Save & Re-Score Feed" and navigating
+        // back within that window would otherwise drop the last edit when this ViewModel (and its
+        // viewModelScope) is cleared. Cancel the pending debounce and flush the current — already
+        // normalized — weights on the application scope so the write survives the screen going away.
+        // The explicit Save bypasses the slider rate-limiter: it's one deliberate action, not the
+        // rapid drag the limiter throttles (and it avoids racing on the shared timestamp deque).
+        val state = _uiState.value
+        if (state !is AlgorithmWeightsUiState.Content) return
+        updateJob?.cancel()
+        appScope.launch {
+            repository.updatePreferences(state.tech, state.politics, state.global, state.business, state.health)
+        }
     }
 }

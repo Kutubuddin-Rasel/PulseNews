@@ -6,11 +6,17 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.newsapp.Api.PulseBackendApi
 import com.example.newsapp.Room.InteractionEventDao
+import com.example.newsapp.Room.InteractionEventEntity
 import com.example.newsapp.data.remote.dto.TelemetryBatchRequest
-import com.example.newsapp.data.remote.dto.TelemetryEventDto
-import com.example.newsapp.data.util.DeviceIdProvider
+import com.example.newsapp.data.remote.dto.TelemetryEvent
+import com.example.newsapp.domain.util.DeviceIdProvider
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import java.io.IOException
+import java.time.Instant
+import java.util.UUID
 
 @HiltWorker
 class TelemetrySyncWorker @AssistedInject constructor(
@@ -22,36 +28,73 @@ class TelemetrySyncWorker @AssistedInject constructor(
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
-        val deviceId = deviceIdProvider.deviceId
-        
-        // Grab up to 50 pending events
-        val pendingEvents = interactionEventDao.getPendingEvents(50)
-        if (pendingEvents.isEmpty()) {
-            return Result.success()
-        }
+        var drained = 0
 
-        val dtoList = pendingEvents.map { 
-            TelemetryEventDto(
-                articleId = it.articleId,
-                interactionType = it.interactionType,
-                timestamp = it.timestamp
-            )
-        }
-        
-        val request = TelemetryBatchRequest(events = dtoList)
+        // Drain in batches until the queue is empty or we hit the per-run cap (audit A7).
+        while (drained < MAX_EVENTS_PER_RUN) {
+            val batch = interactionEventDao.getPendingEvents(BATCH_SIZE)
+            if (batch.isEmpty()) break
 
-        return try {
-            val response = pulseBackendApi.postInteractions(deviceId, request)
-            if (response.isSuccessful) {
-                // If success, delete those events from DB
-                val eventIds = pendingEvents.map { it.id }
-                interactionEventDao.deleteEvents(eventIds)
-                Result.success()
-            } else {
-                Result.retry()
+            // Deterministic per-batch key: unique per distinct batch, identical across retries of
+            // the same surviving rows — honours POST_news_telemetry.md idempotency contract (A6).
+            val idempotencyKey = batchIdempotencyKey(batch)
+            val request = TelemetryBatchRequest(events = batch.map { it.toTelemetryEvent() })
+
+            val response = try {
+                pulseBackendApi.postInteractions(idempotencyKey, request)
+            } catch (e: IOException) {
+                return Result.retry() // transient network → back off and retry the run
+            } catch (e: Exception) {
+                return Result.retry()
             }
-        } catch (e: Exception) {
-            Result.retry()
+
+            when {
+                response.isSuccessful -> {
+                    interactionEventDao.deleteEvents(batch.map { it.id })
+                    drained += batch.size
+                }
+                // 401/403: not signed in / token invalid — retrying now cannot help. Keep the
+                // events for a future authed run and stop; the table is bounded below (CONF4/A7).
+                response.code() == 401 || response.code() == 403 -> break
+                // 429 rate-limited or 5xx server error: back off and retry the whole run.
+                response.code() == 429 || response.code() >= 500 -> return Result.retry()
+                // Other 4xx (e.g. 400 malformed): poison batch — drop so it can't block the queue.
+                else -> {
+                    interactionEventDao.deleteEvents(batch.map { it.id })
+                    drained += batch.size
+                }
+            }
         }
+
+        // Always bound local storage, regardless of drain outcome (audit A7).
+        interactionEventDao.trimToMostRecent(MAX_RETAINED_EVENTS)
+        return Result.success()
+    }
+
+    private fun batchIdempotencyKey(batch: List<InteractionEventEntity>): String =
+        UUID.nameUUIDFromBytes(
+            batch.map { it.id }.sorted().joinToString(",").toByteArray()
+        ).toString()
+
+    private fun InteractionEventEntity.toTelemetryEvent(): TelemetryEvent {
+        val dataJson = if (!eventData.isNullOrBlank()) {
+            JsonParser.parseString(eventData).asJsonObject
+        } else {
+            JsonObject()
+        }
+        return TelemetryEvent(
+            type = interactionType,
+            articleId = articleId,
+            timestamp = Instant.ofEpochMilli(timestamp).toString(),
+            data = dataJson
+        )
+    }
+
+    companion object {
+        private const val BATCH_SIZE = 50
+        /** Cap per run so a huge backlog can't hold a wakelock indefinitely; the rest drains next run. */
+        private const val MAX_EVENTS_PER_RUN = 500
+        /** Hard ceiling on locally queued events to keep the table bounded when offline/unauthed. */
+        private const val MAX_RETAINED_EVENTS = 5_000
     }
 }

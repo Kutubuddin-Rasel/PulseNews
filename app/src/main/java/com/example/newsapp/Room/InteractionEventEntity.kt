@@ -9,5 +9,6 @@ data class InteractionEventEntity(
     val id: Long = 0,
     val articleId: String,
     val interactionType: String,
-    val timestamp: Long
+    val timestamp: Long,
+    val eventData: String? = null
 )

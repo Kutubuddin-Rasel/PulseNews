@@ -27,10 +27,15 @@ data class Article(
     val source: Source,
     val title: String,
     val urlToImage: String?,
+    // CONF2: feed-supplied summary; the reader shows this when present and only falls
+    // back to the on-demand /summary endpoint when it is null.
+    val summary: String? = null,
     val provenance: com.example.newsapp.domain.model.Provenance? = null,
     val regionCode: String? = null,
     val sourceTier: Int? = null,
     val gravity_score: Float? = null,
+    val personalized_score: Double? = null,
+    val distance: Double? = null,
     @androidx.room.Embedded(prefix = "taxonomy_")
     val taxonomy: ArticleTaxonomy? = null
 )

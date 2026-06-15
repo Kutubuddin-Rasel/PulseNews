@@ -16,7 +16,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.newsapp.Routes
-import com.example.newsapp.ViewModel.SavedUiEvent
+import com.example.newsapp.ViewModel.SavedEvent
+import com.example.newsapp.ViewModel.SavedUiState
 import com.example.newsapp.ViewModel.SavedViewModel
 import com.example.newsapp.domain.model.UiState
 import com.example.newsapp.navigateToArticleDetail
@@ -24,29 +25,56 @@ import com.example.newsapp.ui.components.*
 import com.example.newsapp.ui.theme.MetaMono
 import com.example.newsapp.ui.tokens.*
 
+@Composable
+fun SavedRoute(navController: NavController) {
+    val vm: SavedViewModel = hiltViewModel()
+    val uiState by vm.uiState.collectAsState()
+
+    SavedArticleScreen(
+        uiState = uiState,
+        onEvent = vm::onEvent,
+        onNavigateToHome = {
+            navController.navigate(Routes.home) {
+                popUpTo(navController.graph.startDestinationId) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+        },
+        onNavigateToArticle = { url -> navController.navigateToArticleDetail(url) }
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SavedArticle(navController: NavController) {
-    val vm: SavedViewModel = hiltViewModel()
-    val uiState by vm.state.collectAsState()
+fun SavedArticleScreen(
+    uiState: SavedUiState,
+    onEvent: (SavedEvent) -> Unit,
+    onNavigateToHome: () -> Unit,
+    onNavigateToArticle: (String) -> Unit
+) {
     val snackbarHostState = remember { SnackbarHostState() }
-
-    val snackbar = com.example.newsapp.ui.components.LocalPulseSnackbar.current
-    val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
 
-    LaunchedEffect(vm) {
-        vm.events.collect { event ->
-            when (event) {
-                is SavedUiEvent.Message -> snackbar.showSnackbar(event.value)
-                is SavedUiEvent.UndoDelete -> {
-                    val r = snackbarHostState.showSnackbar(
-                        message = "Removed from saved", 
-                        actionLabel = "Undo", 
-                        duration = SnackbarDuration.Long,
-                    )
-                    if (r == SnackbarResult.ActionPerformed) vm.undoDelete(event.article)
-                }
+    LaunchedEffect(uiState.snackbarMessage, uiState.deletedArticleForUndo) {
+        if (uiState.snackbarMessage != null) {
+            val articleForUndo = uiState.deletedArticleForUndo
+            val result = if (articleForUndo != null) {
+                snackbarHostState.showSnackbar(
+                    message = uiState.snackbarMessage,
+                    actionLabel = "Undo",
+                    duration = SnackbarDuration.Long
+                )
+            } else {
+                snackbarHostState.showSnackbar(
+                    message = uiState.snackbarMessage,
+                    duration = SnackbarDuration.Short
+                )
+            }
+            
+            if (result == SnackbarResult.ActionPerformed && articleForUndo != null) {
+                onEvent(SavedEvent.UndoDelete(articleForUndo))
+            } else {
+                onEvent(SavedEvent.SnackbarDismissed)
             }
         }
     }
@@ -56,26 +84,20 @@ fun SavedArticle(navController: NavController) {
             containerColor = Color.Transparent,
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             snackbarHost = { SnackbarHost(snackbarHostState) },
-            topBar = { SavedHeader(count = (uiState as? UiState.Success)?.data?.size ?: 0) },
+            topBar = { SavedHeader(count = (uiState.articles as? UiState.Success)?.data?.size ?: 0) },
         ) { padding ->
             Column(Modifier.fillMaxSize().padding(padding)) {
-                when (val s = uiState) {
+                when (val s = uiState.articles) {
                     UiState.Idle, UiState.Loading -> FeedSkeleton()
                     is UiState.Error -> ErrorState(
                         title = "Couldn’t load saved.",
                         body = s.message, retryable = s.retryable, onRetry = {},
                     )
                     is UiState.Empty -> EmptyState(
-                        title = "Nothing in \u2018Saved\u2019 yet.",
-                        body = "Bookmark stories you want to come back to. They\u2019ll appear here, available offline.",
+                        title = "Nothing in ‘Saved’ yet.",
+                        body = "Bookmark stories you want to come back to. They’ll appear here, available offline.",
                         actionText = "Browse top stories",
-                        onAction = {
-                            navController.navigate(Routes.home) {
-                                popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
+                        onAction = onNavigateToHome,
                     )
                     is UiState.Success -> LazyColumn(
                         Modifier.fillMaxSize(),
@@ -87,9 +109,9 @@ fun SavedArticle(navController: NavController) {
                                 article = article,
                                 variant = ArticleCardVariant.Standard,
                                 modifier = Modifier.padding(horizontal = NewsSpacing.lg),
-                                onClick = { navController.navigateToArticleDetail(article.url) },
+                                onClick = { onNavigateToArticle(article.url) },
                                 isSaved = true,
-                                onSave = { vm.delete(article) },
+                                onSave = { onEvent(SavedEvent.Delete(article)) },
                                 onShare = {
                                     val sendIntent = android.content.Intent().apply {
                                         action = android.content.Intent.ACTION_SEND

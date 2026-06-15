@@ -5,7 +5,7 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.newsapp.Api.PulseBackendApi
-import com.example.newsapp.data.repository.TaxonomyRepository
+import com.example.newsapp.domain.repository.TaxonomyRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 
@@ -31,6 +31,9 @@ class TaxonomySyncWorker @AssistedInject constructor(
                 val taxonomyDto = response.body()
                 if (taxonomyDto != null) {
                     val currentVersion = taxonomyRepository.getVersion()
+                    
+                    // Always update the fetch time so the TTL is respected
+                    taxonomyRepository.updateLastFetchedTime(now)
                     
                     // Simple string comparison for version, or always overwrite if different
                     if (taxonomyDto.version != currentVersion) {

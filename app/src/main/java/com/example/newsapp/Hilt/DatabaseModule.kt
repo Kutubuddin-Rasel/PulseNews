@@ -6,6 +6,7 @@ import com.example.newsapp.Room.ArticleDatabase
 import com.example.newsapp.Room.ArticleDao
 import com.example.newsapp.Room.CachedFeedDao
 import com.example.newsapp.Room.InteractionEventDao
+import com.example.newsapp.Room.TrendingTopicDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -43,5 +44,10 @@ class DatabaseModule {
     @Provides
     fun provideInteractionEventDao(database: ArticleDatabase): InteractionEventDao {
         return database.interactionEventDao()
+    }
+
+    @Provides
+    fun provideTrendingTopicDao(database: ArticleDatabase): TrendingTopicDao {
+        return database.trendingTopicDao()
     }
 }

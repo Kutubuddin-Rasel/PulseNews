@@ -33,8 +33,10 @@ interface CachedFeedDao {
     """)
     fun getFilteredFeedByCategory(categoryKey: String, source: String?): androidx.paging.PagingSource<Int, CachedFeedArticleEntity>
 
-    @Query("SELECT DISTINCT sourceName FROM cached_feed_articles WHERE sourceName IS NOT NULL AND sourceName != '' ORDER BY sourceName ASC")
-    fun getAvailableSources(): kotlinx.coroutines.flow.Flow<List<String>>
+    // F1: scope the source list to the active feed. Without the feedKey filter this leaked sources
+    // from search results and every previously-visited category into the Home filter dropdown.
+    @Query("SELECT DISTINCT sourceName FROM cached_feed_articles WHERE feedKey = :feedKey AND sourceName IS NOT NULL AND sourceName != '' ORDER BY sourceName ASC")
+    fun getAvailableSources(feedKey: String): kotlinx.coroutines.flow.Flow<List<String>>
 
     @Query("SELECT url FROM cached_feed_articles WHERE feedKey = :feedKey ORDER BY sortOrder ASC LIMIT :limit")
     suspend fun getTopUrls(feedKey: String, limit: Int): List<String>

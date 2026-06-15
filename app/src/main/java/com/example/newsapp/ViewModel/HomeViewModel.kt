@@ -7,7 +7,6 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.example.newsapp.domain.model.EverythingQuery
 import com.example.newsapp.domain.model.TrendingTopic
-import com.example.newsapp.domain.repository.NewsRepository
 import com.example.newsapp.module.Article
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -21,19 +20,31 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.debounce
 import javax.inject.Inject
-import com.example.newsapp.data.repository.PrivacyPreferencesRepository
-import com.example.newsapp.data.util.AuthManager
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import com.example.newsapp.domain.repository.SavedArticleRepository
 
 import com.example.newsapp.domain.model.CategoryKey
+import com.example.newsapp.domain.usecase.auth.ObserveCurrentUserUseCase
+import com.example.newsapp.domain.usecase.auth.SignInUseCase
+import com.example.newsapp.domain.usecase.core.GetDynamicCategoriesUseCase
+import com.example.newsapp.domain.usecase.core.ObserveTelemetryConsentUseCase
+import com.example.newsapp.domain.usecase.core.SetTelemetryConsentUseCase
+import com.example.newsapp.domain.usecase.news.GetAvailableSourcesUseCase
+import com.example.newsapp.domain.usecase.news.GetFeedUseCase
+import com.example.newsapp.domain.usecase.news.ObserveFeedMetaUseCase
+import com.example.newsapp.domain.usecase.saved.DeleteArticleUseCase
+import com.example.newsapp.domain.usecase.saved.ObserveSavedArticlesUseCase
+import com.example.newsapp.domain.usecase.saved.SaveArticleUseCase
 
-enum class FeedMode { FOR_YOU, TRENDING }
+sealed interface FeedMode {
+    data object FOR_YOU : FeedMode
+    data object TRENDING : FeedMode
+}
 
 data class FilterUiState(
     val categoryKey: CategoryKey = CategoryKey.FOR_YOU,
@@ -43,23 +54,47 @@ data class FilterUiState(
 data class HomeUiState(
     val filter: FilterUiState = FilterUiState(),
     val isRefreshing: Boolean = false,
-    val event: String? = null
+    val telemetryConsent: Boolean? = true,
+    val isAuthenticated: Boolean = false,
+    val savedArticles: Set<String> = emptySet(),
+    val dynamicCategories: List<Pair<CategoryKey, String>> = listOf(CategoryKey.FOR_YOU to "For You"),
+    val lastUpdated: String? = null,
+    val availableSources: List<String> = emptyList(),
+    val trendingTopics: List<TrendingTopic> = emptyList(),
+    val snackbarMessage: String? = null
 )
+
+sealed interface HomeEvent {
+    data class SetTelemetryConsent(val granted: Boolean) : HomeEvent
+    data class SignIn(val activityContext: android.content.Context) : HomeEvent
+    data class SetCategory(val categoryKey: CategoryKey) : HomeEvent
+    data class SetSource(val source: String?) : HomeEvent
+    data class TrackArticleClick(val articleId: String) : HomeEvent
+    data class SaveArticle(val article: Article) : HomeEvent
+    data class DeleteArticle(val article: Article) : HomeEvent
+    data object SnackbarConsumed : HomeEvent
+}
 
 @OptIn(kotlinx.coroutines.FlowPreview::class)
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val newsRepository: NewsRepository,
-    private val savedArticleRepository: SavedArticleRepository,
-    private val privacyPrefsRepo: PrivacyPreferencesRepository,
-    private val localEngagementTracker: com.example.newsapp.data.util.LocalEngagementTracker,
+    private val getFeedUseCase: GetFeedUseCase,
+    private val getAvailableSourcesUseCase: GetAvailableSourcesUseCase,
+    private val observeFeedMetaUseCase: ObserveFeedMetaUseCase,
+    private val saveArticleUseCase: SaveArticleUseCase,
+    private val deleteArticleUseCase: DeleteArticleUseCase,
+    private val observeSavedArticlesUseCase: ObserveSavedArticlesUseCase,
+    private val setTelemetryConsentUseCase: SetTelemetryConsentUseCase,
+    private val observeTelemetryConsentUseCase: ObserveTelemetryConsentUseCase,
+    private val observeCurrentUserUseCase: ObserveCurrentUserUseCase,
+    private val signInUseCase: SignInUseCase,
+    private val getDynamicCategoriesUseCase: GetDynamicCategoriesUseCase,
+    private val localEngagementTracker: com.example.newsapp.domain.tracker.LocalEngagementTracker,
     private val savedStateHandle: SavedStateHandle,
-    private val appTelemetry: com.example.newsapp.data.util.AppTelemetry,
-    private val authManager: AuthManager,
-    private val taxonomyRepository: com.example.newsapp.data.repository.TaxonomyRepository
+    private val appTelemetry: com.example.newsapp.domain.util.AppTelemetry
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(
+    private val _internalState = MutableStateFlow(
         HomeUiState(
             filter = FilterUiState(
                 categoryKey = CategoryKey(savedStateHandle.get<String>(KEY_CATEGORY_KEY) ?: "for_you"),
@@ -67,145 +102,134 @@ class HomeViewModel @Inject constructor(
             )
         )
     )
-    val uiState: StateFlow<HomeUiState> = _uiState
 
-    val availableSources: StateFlow<List<String>> = newsRepository.getAvailableSources()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    // F1: the source-filter dropdown is scoped to the active feed and must switch when the category
+    // changes. flatMapLatest cancels the previous category's Room query and starts the new scoped
+    // one, so a stale category's sources can never race-win and contaminate the current dropdown.
+    // distinctUntilChanged keeps unrelated state churn (saved set, consent, refresh) from
+    // needlessly tearing down and rebuilding the DB Flow.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val availableSourcesFlow: Flow<List<String>> = _internalState
+        .map { it.filter.categoryKey }
+        .distinctUntilChanged()
+        .flatMapLatest { categoryKey -> getAvailableSourcesUseCase(categoryKey) }
 
-    val dynamicCategories: StateFlow<List<Pair<CategoryKey, String>>> = taxonomyRepository.dictionaryFlow
-        .map { dict ->
-            val list = mutableListOf(CategoryKey.FOR_YOU to "For You")
-            dict.keys.forEach { key ->
-                val displayName = key.value.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }
-                list.add(key to displayName)
-            }
-            list
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf(CategoryKey.FOR_YOU to "For You"))
-
-    private val _events = MutableSharedFlow<String>()
-    val events: SharedFlow<String> = _events
-    
-    private val _telemetryConsent = MutableStateFlow<Boolean?>(true)
-    val telemetryConsent: StateFlow<Boolean?> = _telemetryConsent
-
-    private val _trendingTopics = MutableStateFlow<List<TrendingTopic>>(emptyList())
-    val trendingTopics: StateFlow<List<TrendingTopic>> = _trendingTopics
-
-    private val _lastUpdated = MutableStateFlow<String?>(null)
-    val lastUpdated: StateFlow<String?> = _lastUpdated
-
-    val savedArticles: StateFlow<Set<String>> = savedArticleRepository.observeSavedArticles()
-        .map { articles -> articles.map { it.url }.toSet() }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptySet()
+    val state: StateFlow<HomeUiState> = combine(
+        combine(
+            _internalState,
+            observeSavedArticlesUseCase().map { articles -> articles.map { it.url }.toSet() },
+            observeCurrentUserUseCase().map { it != null },
+            getDynamicCategoriesUseCase(),
+            availableSourcesFlow
+        ) { internalState, saved, isAuth, categories, sources ->
+            internalState.copy(
+                savedArticles = saved,
+                isAuthenticated = isAuth,
+                dynamicCategories = categories,
+                availableSources = sources
+            )
+        },
+        observeTelemetryConsentUseCase(),
+        observeFeedMetaUseCase()
+    ) { partialState, consent, meta ->
+        partialState.copy(
+            telemetryConsent = consent,
+            lastUpdated = meta?.lastUpdated
         )
-
-    val isAuthenticated: StateFlow<Boolean> = authManager.currentUser
-        .map { it != null }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeUiState())
 
     init {
-
-        viewModelScope.launch {
-            privacyPrefsRepo.telemetryConsent.collectLatest { consent ->
-                _telemetryConsent.value = consent
-            }
-        }
-        
-        fetchNewsMeta()
+        // Initialization if needed
     }
 
-    fun setTelemetryConsent(granted: Boolean) {
-        viewModelScope.launch {
-            privacyPrefsRepo.setConsent(granted)
+    fun onEvent(event: HomeEvent) {
+        when (event) {
+            is HomeEvent.SetTelemetryConsent -> setTelemetryConsent(event.granted)
+            is HomeEvent.SignIn -> signIn(event.activityContext)
+            is HomeEvent.SetCategory -> setCategory(event.categoryKey)
+            is HomeEvent.SetSource -> setSource(event.source)
+            is HomeEvent.TrackArticleClick -> trackArticleClick(event.articleId)
+            is HomeEvent.SaveArticle -> saveArticle(event.article)
+            is HomeEvent.DeleteArticle -> deleteArticle(event.article)
+            is HomeEvent.SnackbarConsumed -> _internalState.value = _internalState.value.copy(snackbarMessage = null)
         }
     }
 
-    fun fetchNewsMeta() {
+    private fun setTelemetryConsent(granted: Boolean) {
         viewModelScope.launch {
-            try {
-                val result = newsRepository.getNewsMeta()
-                if (result.isSuccess) {
-                    _lastUpdated.value = result.getOrNull()?.lastUpdated
-                }
-            } catch (e: Exception) {
-                // Ignore failure
-            }
+            setTelemetryConsentUseCase(granted)
         }
     }
 
     private data class FeedCacheKey(val filter: FilterUiState, val isAuthenticated: Boolean)
-    private val feedCache = mutableMapOf<FeedCacheKey, Flow<PagingData<Article>>>()
 
-    fun getFeed(filter: FilterUiState): Flow<PagingData<Article>> {
-        val isAuth = isAuthenticated.value
-        val key = FeedCacheKey(filter, isAuth)
-        return feedCache.getOrPut(key) {
+    // F2: a single paging stream that switches with the active filter/auth (the canonical Paging
+    // pattern) and is cached exactly once. Replaces an unbounded per-(filter, auth) map of
+    // `cachedIn` flows that was never evicted — it pinned one flow per visited combination for the
+    // ViewModel's whole life. `distinctUntilChanged` collapses unrelated state emissions (saved
+    // set, consent, …) so the feed only re-subscribes when filter/auth actually changes.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val pagingData: Flow<PagingData<Article>> = state
+        .map { FeedCacheKey(it.filter, it.isAuthenticated) }
+        .distinctUntilChanged()
+        .flatMapLatest { key ->
             if (key.filter.categoryKey == CategoryKey.FOR_YOU && !key.isAuthenticated) {
-                // Zero-Trust Auth Gate: Unauthenticated users get an empty state on "For You"
                 kotlinx.coroutines.flow.flowOf(PagingData.empty())
             } else {
-                newsRepository.getFeed(
+                getFeedUseCase(
                     categoryKey = key.filter.categoryKey,
                     source = key.filter.selectedSource
-                ).cachedIn(viewModelScope)
+                )
             }
         }
-    }
+        .cachedIn(viewModelScope)
 
-
-
-    fun signIn(activityContext: android.content.Context) {
+    private fun signIn(activityContext: android.content.Context) {
         viewModelScope.launch {
-            val result = authManager.signInWithGoogle(activityContext)
+            val result = signInUseCase(activityContext)
             if (result.isFailure) {
-                _events.emit("Sign in failed. Ensure you have a Google Account on this device.")
+                _internalState.value = _internalState.value.copy(snackbarMessage = "Sign in failed. Ensure you have a Google Account on this device.")
             }
         }
     }
 
-    fun setCategory(categoryKey: CategoryKey) {
-        val current = _uiState.value.filter
+    private fun setCategory(categoryKey: CategoryKey) {
+        val current = _internalState.value.filter
         if (current.categoryKey == categoryKey) return
         updateFilter(current.copy(categoryKey = categoryKey))
     }
 
-    fun setSource(source: String?) {
-        val current = _uiState.value.filter
+    private fun setSource(source: String?) {
+        val current = _internalState.value.filter
         if (current.selectedSource == source) return
         updateFilter(current.copy(selectedSource = source))
     }
 
-
-
     private fun updateFilter(filter: FilterUiState) {
         savedStateHandle[KEY_CATEGORY_KEY] = filter.categoryKey.value
         savedStateHandle[KEY_SELECTED_SOURCE] = filter.selectedSource
-        _uiState.value = _uiState.value.copy(filter = filter)
+        _internalState.value = _internalState.value.copy(filter = filter)
     }
 
-    fun trackArticleClick(articleId: String) {
-        val currentCategory = _uiState.value.filter.categoryKey
+    private fun trackArticleClick(articleId: String) {
+        val currentCategory = _internalState.value.filter.categoryKey
         viewModelScope.launch {
             localEngagementTracker.incrementClick(currentCategory)
-            appTelemetry.logInteraction(articleId, "article_clicked")
+            appTelemetry.trackClick(articleId)
         }
     }
 
-    fun saveArticle(article: Article) {
+    private fun saveArticle(article: Article) {
         viewModelScope.launch {
-            savedArticleRepository.saveArticle(article)
-            _events.emit("Article saved")
+            saveArticleUseCase(article)
+            _internalState.value = _internalState.value.copy(snackbarMessage = "Article saved")
         }
     }
 
-    fun deleteArticle(article: Article) {
+    private fun deleteArticle(article: Article) {
         viewModelScope.launch {
-            savedArticleRepository.deleteArticle(article)
-            _events.emit("Article removed")
+            deleteArticleUseCase(article)
+            _internalState.value = _internalState.value.copy(snackbarMessage = "Article removed")
         }
     }
 

@@ -16,10 +16,11 @@ import androidx.paging.cachedIn
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import com.example.newsapp.domain.usecase.news.GetFeedUseCase
 
 @HiltViewModel
 class TopHeadlinesViewModel @Inject constructor(
-    private val newsRepository: NewsRepository,
+    private val getFeedUseCase: GetFeedUseCase,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -28,7 +29,7 @@ class TopHeadlinesViewModel @Inject constructor(
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val state: kotlinx.coroutines.flow.Flow<androidx.paging.PagingData<Article>> = _category
         .flatMapLatest { category ->
-            newsRepository.getFeed(categoryKey = CategoryKey(category))
+            getFeedUseCase(categoryKey = CategoryKey(category))
         }
         .cachedIn(viewModelScope)
 

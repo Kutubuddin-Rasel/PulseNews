@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
@@ -54,7 +55,7 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
-import com.example.newsapp.data.util.TelemetryManager
+import com.example.newsapp.domain.util.AppTelemetry
 
 val LocalPulseSnackbar = compositionLocalOf<SnackbarHostState> {
     error("No SnackbarHostState provided.")
@@ -62,11 +63,15 @@ val LocalPulseSnackbar = compositionLocalOf<SnackbarHostState> {
 
 @EntryPoint
 @InstallIn(SingletonComponent::class)
-interface TelemetryEntryPoint {
-    fun telemetryManager(): TelemetryManager
+interface AppTelemetryEntryPoint {
+    fun appTelemetry(): AppTelemetry
 }
 
-enum class ArticleCardVariant { Standard, Featured, Compact }
+sealed interface ArticleCardVariant {
+    data object Standard : ArticleCardVariant
+    data object Featured : ArticleCardVariant
+    data object Compact : ArticleCardVariant
+}
 
 @Composable
 fun NewsBackground(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
@@ -81,6 +86,7 @@ fun ArticleCard(
     article: Article,
     modifier: Modifier = Modifier,
     variant: ArticleCardVariant = ArticleCardVariant.Standard,
+    index: Int = 0,
     onClick: () -> Unit,
     onSave: (() -> Unit)? = null,
     onShare: (() -> Unit)? = null,
@@ -95,8 +101,8 @@ fun ArticleCard(
         label = "press"
     )
     val context = LocalContext.current
-    val telemetryManager = remember(context) {
-        EntryPointAccessors.fromApplication(context.applicationContext, TelemetryEntryPoint::class.java).telemetryManager()
+    val appTelemetry = remember(context) {
+        EntryPointAccessors.fromApplication(context.applicationContext, AppTelemetryEntryPoint::class.java).appTelemetry()
     }
 
     Surface(
@@ -104,16 +110,16 @@ fun ArticleCard(
             .fillMaxWidth()
             .padding(horizontal = NewsSpacing.lg)
             .scale(scale)
-            .clip(RoundedCornerShape(NewsRadius.card))
-            .border(NewsStroke.thin, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(NewsRadius.card))
+            .clip(MaterialTheme.shapes.large)
+            .border(NewsStroke.thin, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.large)
             .clickable(interactionSource = interaction, indication = LocalIndication.current) {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                telemetryManager.trackClick(article.backendId ?: article.url, 0)
+                appTelemetry.trackClick(article.backendId ?: article.url)
                 onClick()
             }
             .semantics(mergeDescendants = true) {},
         color = MaterialTheme.colorScheme.surfaceContainerLowest,
-        shape = RoundedCornerShape(NewsRadius.card),
+        shape = MaterialTheme.shapes.large,
     ) {
         Column {
             if (variant == ArticleCardVariant.Featured) {
@@ -129,7 +135,7 @@ fun ArticleCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(if (variant == ArticleCardVariant.Featured) NewsImage.featuredHeight else NewsImage.heroHeight)
-                            .clip(RoundedCornerShape(NewsRadius.md))
+                            .clip(MaterialTheme.shapes.medium)
                             .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                         error = {
                             Box {
@@ -158,10 +164,10 @@ fun ArticleCard(
 
                 if (variant == ArticleCardVariant.Featured) {
                     Box(
-                        Modifier.background(AccentGradient, RoundedCornerShape(NewsRadius.pill))
+                        Modifier.background(AccentGradient, MaterialTheme.shapes.extraLarge)
                             .padding(horizontal = 10.dp, vertical = 5.dp)
                     ) {
-                        Text("TOP STORY", color = androidx.compose.ui.graphics.Color.White, style = MetaMono)
+                        Text("TOP STORY", color = MaterialTheme.colorScheme.onPrimary, style = MetaMono)
                     }
                     Spacer(Modifier.height(NewsSpacing.sm))
                 }
@@ -180,7 +186,6 @@ fun ArticleCard(
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = if (variant == ArticleCardVariant.Compact) 2 else 3,
                     overflow = TextOverflow.Ellipsis,
-                    fontWeight = FontWeight.Medium,
                 )
 
                 if (variant != ArticleCardVariant.Compact && !article.description.isNullOrBlank()) {
@@ -274,25 +279,53 @@ private fun ArticleMetaRow(article: Article) {
                 maxLines = 1,
             )
         }
-        val confidence = article.taxonomy?.mlConfidence
-        if (confidence != null && confidence >= 0.8f) {
+        val distance = article.distance
+        if (distance != null) {
+            val matchPercentage = ((1.0 - distance) * 100).toInt()
             Spacer(Modifier.weight(1f))
-            Icon(
-                imageVector = Icons.Filled.AutoAwesome,
-                contentDescription = "Highly Relevant",
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
                 modifier = Modifier
-                    .size(14.dp)
-                    .graphicsLayer(alpha = 0.99f)
-                    .drawWithCache {
-                        onDrawWithContent {
-                            drawContent()
-                            drawRect(
-                                brush = AccentGradient,
-                                blendMode = androidx.compose.ui.graphics.BlendMode.SrcAtop,
-                            )
-                        }
-                    },
-            )
+                    .clip(MaterialTheme.shapes.extraSmall)
+                    .background(AccentGradient)
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.AutoAwesome,
+                    contentDescription = "AI Match",
+                    modifier = Modifier.size(12.dp),
+                    tint = MaterialTheme.colorScheme.onPrimary
+                )
+                Text(
+                    text = "$matchPercentage% MATCH",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    maxLines = 1
+                )
+            }
+        } else {
+            val confidence = article.taxonomy?.mlConfidence
+            if (confidence != null && confidence >= 0.8f) {
+                Spacer(Modifier.weight(1f))
+                Icon(
+                    imageVector = Icons.Filled.AutoAwesome,
+                    contentDescription = "Highly Relevant",
+                    modifier = Modifier
+                        .size(14.dp)
+                        .graphicsLayer(alpha = 0.99f)
+                        .drawWithCache {
+                            onDrawWithContent {
+                                drawContent()
+                                drawRect(
+                                    brush = AccentGradient,
+                                    blendMode = androidx.compose.ui.graphics.BlendMode.SrcAtop,
+                                )
+                            }
+                        },
+                )
+            }
         }
     }
 }
@@ -337,7 +370,7 @@ private fun CategoryPill(text: String) {
     if (text.isBlank()) return
     Surface(
         color = MaterialTheme.colorScheme.primaryContainer,
-        shape = RoundedCornerShape(NewsRadius.pill),
+        shape = MaterialTheme.shapes.extraLarge,
     ) {
         Text(
             text = text,
@@ -375,7 +408,7 @@ fun StateBanner(message: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.fillMaxWidth().padding(horizontal = NewsSpacing.lg),
         color = MaterialTheme.colorScheme.secondaryContainer,
-        shape = RoundedCornerShape(NewsRadius.sm),
+        shape = MaterialTheme.shapes.small,
     ) {
         Row(
             Modifier.padding(horizontal = NewsSpacing.md, vertical = NewsSpacing.sm),
@@ -404,7 +437,7 @@ fun EmptyState(title: String, body: String, actionText: String? = null, onAction
         Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (actionText != null && onAction != null) {
             Spacer(Modifier.height(NewsSpacing.xs))
-            FilledTonalButton(onClick = onAction, shape = RoundedCornerShape(NewsRadius.pill)) {
+            FilledTonalButton(onClick = onAction) {
                 Text(actionText, style = MaterialTheme.typography.labelLarge)
             }
         }
@@ -425,7 +458,6 @@ fun ErrorState(title: String, body: String, retryable: Boolean, onRetry: () -> U
         if (retryable) {
             OutlinedButton(
                 onClick = onRetry,
-                shape = RoundedCornerShape(NewsRadius.pill),
                 border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error),
             ) {
                 Text("Retry now", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelLarge)
@@ -456,17 +488,17 @@ private fun SkeletonCard() {
     Surface(
         modifier = Modifier.fillMaxWidth().padding(horizontal = NewsSpacing.lg).clearAndSetSemantics { },
         color = MaterialTheme.colorScheme.surfaceContainerLowest,
-        shape = RoundedCornerShape(NewsRadius.card),
+        shape = MaterialTheme.shapes.large,
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column(Modifier.padding(NewsSpacing.lg), verticalArrangement = Arrangement.spacedBy(NewsSpacing.sm)) {
-            Box(Modifier.fillMaxWidth().height(NewsImage.heroHeight).clip(RoundedCornerShape(NewsRadius.md))
+            Box(Modifier.fillMaxWidth().height(NewsImage.heroHeight).clip(MaterialTheme.shapes.medium)
                 .background(MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)))
-            Box(Modifier.fillMaxWidth(0.4f).height(10.dp).clip(RoundedCornerShape(NewsRadius.xs))
+            Box(Modifier.fillMaxWidth(0.4f).height(10.dp).clip(MaterialTheme.shapes.extraSmall)
                 .background(MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)))
-            Box(Modifier.fillMaxWidth(0.9f).height(14.dp).clip(RoundedCornerShape(NewsRadius.xs))
+            Box(Modifier.fillMaxWidth(0.9f).height(14.dp).clip(MaterialTheme.shapes.extraSmall)
                 .background(MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)))
-            Box(Modifier.fillMaxWidth(0.7f).height(12.dp).clip(RoundedCornerShape(NewsRadius.xs))
+            Box(Modifier.fillMaxWidth(0.7f).height(12.dp).clip(MaterialTheme.shapes.extraSmall)
                 .background(MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)))
         }
     }
@@ -555,7 +587,6 @@ fun EndOfFeedState(
             text = "You\u2019re caught up.",
             style = MaterialTheme.typography.displaySmall,
             color = MaterialTheme.colorScheme.onBackground,
-            fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,
         )
 

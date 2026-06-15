@@ -280,7 +280,10 @@ fun QuietHoursSection(
     }
 }
 
-private enum class QuietHoursEdit { Start, End }
+private sealed interface QuietHoursEdit {
+    data object Start : QuietHoursEdit
+    data object End : QuietHoursEdit
+}
 
 @Composable
 private fun QuietHoursTimeChip(
