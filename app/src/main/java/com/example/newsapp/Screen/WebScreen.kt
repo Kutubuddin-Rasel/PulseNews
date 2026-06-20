@@ -196,7 +196,7 @@ fun WebScreen(navController: NavController) {
             bottomBar = {
                 if (audioState is com.example.newsapp.ViewModel.AudioState.Ready) {
                     val uri = (audioState as com.example.newsapp.ViewModel.AudioState.Ready).uri
-                    val title = (readerState as? com.example.newsapp.ViewModel.ReaderState.Success)?.article?.title ?: "Article"
+                    val title = (readerState as? com.example.newsapp.ViewModel.ReaderState.Success)?.content?.title ?: "Article"
                     AudioPlaybackController(
                         uri = uri,
                         title = title,
@@ -239,10 +239,10 @@ fun WebScreen(navController: NavController) {
                             contentPadding = PaddingValues(bottom = 88.dp)
                         ) {
                             item {
-                                if (state.article.heroImageUrl != null) {
+                                if (state.content.heroImageUrl != null) {
                                 coil.compose.AsyncImage(
-                                        model = state.article.heroImageUrl,
-                                        contentDescription = "${state.article.title} hero image",
+                                        model = state.content.heroImageUrl,
+                                        contentDescription = "${state.content.title} hero image",
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .height(220.dp)
@@ -252,7 +252,7 @@ fun WebScreen(navController: NavController) {
                                     Spacer(modifier = Modifier.height(NewsSpacing.md))
                                 }
                                 Text(
-                                    text = state.article.title,
+                                    text = state.content.title,
                                     style = MaterialTheme.typography.headlineLarge,
                                     color = MaterialTheme.colorScheme.onBackground
                                 )
@@ -267,7 +267,7 @@ fun WebScreen(navController: NavController) {
                             // block by type so the lazy list recycles compositions only among
                             // like-typed blocks (Text↔Text, Image↔Image) instead of rebuilding.
                             itemsIndexed(
-                                items = state.article.blocks,
+                                items = state.content.blocks,
                                 key = { index, _ -> index },
                                 contentType = { _, block ->
                                     when (block) {

@@ -3,10 +3,11 @@ package com.example.newsapp.domain.util.reader
 import com.example.newsapp.domain.util.ArticleBlock
 import com.example.newsapp.domain.util.TextType
 import org.jsoup.Jsoup
+import javax.inject.Inject
 
 /** Converts already-isolated article HTML (from ReadabilityExtractor) into the
  * ArticleBlock AST the reader renders. */
-class ArticleBlockMapper {
+class ArticleBlockMapper @Inject constructor() {
     private fun String.norm() = lowercase().replace(Regex("[^a-z0-9]"), "")
 
     fun map(contentHtml: String, title: String, heroImageUrl: String?): List<ArticleBlock> {
