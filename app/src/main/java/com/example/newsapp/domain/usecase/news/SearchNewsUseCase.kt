@@ -9,7 +9,7 @@ import javax.inject.Inject
 class SearchNewsUseCase @Inject constructor(
     private val newsRepository: NewsRepository
 ) {
-    operator fun invoke(query: String): Flow<PagingData<Article>> {
-        return newsRepository.searchNews(query)
+    operator fun invoke(query: String, excludeId: String? = null): Flow<PagingData<Article>> {
+        return newsRepository.searchNews(query, excludeId)
     }
 }

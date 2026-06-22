@@ -87,7 +87,7 @@ class NewsRepositoryImpl @Inject constructor(
         }
     }
 
-    override fun searchNews(query: String): Flow<androidx.paging.PagingData<Article>> {
+    override fun searchNews(query: String, excludeId: String?): Flow<androidx.paging.PagingData<Article>> {
         return androidx.paging.Pager(
             config = androidx.paging.PagingConfig(
                 pageSize = 20,
@@ -95,7 +95,7 @@ class NewsRepositoryImpl @Inject constructor(
                 enablePlaceholders = false
             ),
             pagingSourceFactory = {
-                SearchPagingSource(pulseBackendApi, connectivityMonitor, searchResultCache, query)
+                SearchPagingSource(pulseBackendApi, connectivityMonitor, searchResultCache, query, excludeId)
             }
         ).flow
     }

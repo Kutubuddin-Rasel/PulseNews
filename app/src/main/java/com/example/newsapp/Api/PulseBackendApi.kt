@@ -40,7 +40,8 @@ interface PulseBackendApi {
     suspend fun searchNews(
         @Query("q") query: String,
         @Query("page") page: Int? = null,
-        @Query("limit") limit: Int = 20
+        @Query("limit") limit: Int = 20,
+        @Query("excludeId") excludeId: String? = null
     ): Response<List<PulseArticleDto>>
 
     @GET("api/news/trending")
