@@ -52,7 +52,7 @@ class NewsRepositoryImpl @Inject constructor(
         if (categoryKey == CategoryKey.FOR_YOU) "for_you" else categoryKey.value
 
     @OptIn(androidx.paging.ExperimentalPagingApi::class)
-    override fun getFeed(categoryKey: CategoryKey, source: String?): Flow<androidx.paging.PagingData<Article>> {
+    override fun getFeed(categoryKey: CategoryKey, source: String?, forceRefresh: Boolean): Flow<androidx.paging.PagingData<Article>> {
         val feedKey = feedKeyFor(categoryKey)
 
         // Use RemoteMediator to handle graceful backend pagination and local cache appending for all feeds
@@ -74,7 +74,8 @@ class NewsRepositoryImpl @Inject constructor(
                     telemetry = telemetry,
                     algorithmPreferencesRepository = algorithmPreferencesRepository,
                     feedMetaRepository = feedMetaRepository,
-                    geoLanguageRepository = geoLanguageRepository
+                    geoLanguageRepository = geoLanguageRepository,
+                    forceRefresh = forceRefresh
                 )
             } else null,
             pagingSourceFactory = {

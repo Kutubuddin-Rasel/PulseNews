@@ -64,6 +64,7 @@ class HomeViewModelAuthFlowTest {
     private lateinit var savedStateHandle: SavedStateHandle
     private lateinit var appTelemetry: AppTelemetry
     private lateinit var syncGeoPreferencesUseCase: com.example.newsapp.domain.usecase.geo.SyncGeoPreferencesUseCase
+    private lateinit var geoLanguageRepository: com.example.newsapp.domain.repository.GeoLanguageRepository
 
     private val authStateFlow = MutableStateFlow<FirebaseUser?>(null)
 
@@ -105,6 +106,8 @@ class HomeViewModelAuthFlowTest {
         appTelemetry = mockk(relaxed = true)
         syncGeoPreferencesUseCase = mockk(relaxed = true)
         coEvery { syncGeoPreferencesUseCase() } returns Unit
+        geoLanguageRepository = mockk(relaxed = true)
+        every { geoLanguageRepository.state } returns flowOf(com.example.newsapp.domain.model.GeoLanguageState())
 
         viewModel = HomeViewModel(
             getFeedUseCase = getFeedUseCase,
@@ -121,7 +124,8 @@ class HomeViewModelAuthFlowTest {
             localEngagementTracker = localEngagementTracker,
             savedStateHandle = savedStateHandle,
             appTelemetry = appTelemetry,
-            syncGeoPreferencesUseCase = syncGeoPreferencesUseCase
+            syncGeoPreferencesUseCase = syncGeoPreferencesUseCase,
+            geoLanguageRepository = geoLanguageRepository
         )
     }
 

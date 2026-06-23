@@ -31,7 +31,11 @@ class ArticleRemoteMediator(
     private val telemetry: AppTelemetry,
     private val algorithmPreferencesRepository: AlgorithmPreferencesRepository,
     private val feedMetaRepository: FeedMetaRepository,
-    private val geoLanguageRepository: GeoLanguageRepository
+    private val geoLanguageRepository: GeoLanguageRepository,
+    // Phase 3: when the user changes their region, the feed must re-fetch page 1 with the new
+    // region param even if the cache is still "fresh". A region-driven Pager rebuild sets this so
+    // initialize() forces a refresh; the normal launch path leaves it false and honours the TTL.
+    private val forceRefresh: Boolean = false
 ) : RemoteMediator<Int, CachedFeedArticleEntity>() {
 
     private val cacheFreshnessMs = 15 * 60 * 1000L
@@ -42,9 +46,13 @@ class ArticleRemoteMediator(
     private val metaFreshnessMs = 60 * 60 * 1000L
 
     override suspend fun initialize(): InitializeAction {
+        // A region change bypasses the freshness window: load(REFRESH) clears the feed and
+        // re-fetches page 1 with the new region param.
+        if (forceRefresh) return InitializeAction.LAUNCH_INITIAL_REFRESH
+
         val latestFetchTime = database.cachedFeedDao().latestFetchTime(feedKey)
         val cacheAgeMs = latestFetchTime?.let { clockProvider.nowMillis() - it }
-        
+
         return if (cacheAgeMs != null && cacheAgeMs <= cacheFreshnessMs) {
             telemetry.info("RemoteMediator", "Cache is fresh for $feedKey. Age: $cacheAgeMs ms")
             InitializeAction.SKIP_INITIAL_REFRESH

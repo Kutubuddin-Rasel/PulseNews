@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.runningFold
 import javax.inject.Inject
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.SharingStarted
@@ -92,7 +93,8 @@ class HomeViewModel @Inject constructor(
     private val localEngagementTracker: com.example.newsapp.domain.tracker.LocalEngagementTracker,
     private val savedStateHandle: SavedStateHandle,
     private val appTelemetry: com.example.newsapp.domain.util.AppTelemetry,
-    private val syncGeoPreferencesUseCase: com.example.newsapp.domain.usecase.geo.SyncGeoPreferencesUseCase
+    private val syncGeoPreferencesUseCase: com.example.newsapp.domain.usecase.geo.SyncGeoPreferencesUseCase,
+    private val geoLanguageRepository: com.example.newsapp.domain.repository.GeoLanguageRepository
 ) : ViewModel() {
 
     private val _internalState = MutableStateFlow(
@@ -167,16 +169,28 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private data class FeedCacheKey(val filter: FilterUiState, val isAuthenticated: Boolean)
+    private data class FeedCacheKey(val filter: FilterUiState, val isAuthenticated: Boolean, val geoToken: Int)
+
+    // Phase 3: a monotonic token over distinct home-region changes. runningFold emits 0 initially,
+    // 1 once the stored/detected region settles on launch, and 2+ on each later user-driven change.
+    // Folding it into FeedCacheKey rebuilds the Pager when the region changes, and geoToken >= 2
+    // flags that rebuild as a deliberate change so the mediator forces a refresh (token 0/1 keep
+    // the launch path honouring the cache TTL).
+    private val geoToken: Flow<Int> = geoLanguageRepository.state
+        .map { it.homeRegion }
+        .distinctUntilChanged()
+        .runningFold(0) { acc, _ -> acc + 1 }
 
     // F2: a single paging stream that switches with the active filter/auth (the canonical Paging
     // pattern) and is cached exactly once. Replaces an unbounded per-(filter, auth) map of
     // `cachedIn` flows that was never evicted — it pinned one flow per visited combination for the
     // ViewModel's whole life. `distinctUntilChanged` collapses unrelated state emissions (saved
-    // set, consent, …) so the feed only re-subscribes when filter/auth actually changes.
+    // set, consent, …) so the feed only re-subscribes when filter/auth/region actually changes.
     @OptIn(ExperimentalCoroutinesApi::class)
-    val pagingData: Flow<PagingData<Article>> = state
-        .map { FeedCacheKey(it.filter, it.isAuthenticated) }
+    val pagingData: Flow<PagingData<Article>> = combine(
+        state.map { it.filter to it.isAuthenticated }.distinctUntilChanged(),
+        geoToken
+    ) { (filter, isAuth), token -> FeedCacheKey(filter, isAuth, token) }
         .distinctUntilChanged()
         .flatMapLatest { key ->
             if (key.filter.categoryKey == CategoryKey.FOR_YOU && !key.isAuthenticated) {
@@ -184,7 +198,8 @@ class HomeViewModel @Inject constructor(
             } else {
                 getFeedUseCase(
                     categoryKey = key.filter.categoryKey,
-                    source = key.filter.selectedSource
+                    source = key.filter.selectedSource,
+                    forceRefresh = key.geoToken >= 2
                 )
             }
         }
