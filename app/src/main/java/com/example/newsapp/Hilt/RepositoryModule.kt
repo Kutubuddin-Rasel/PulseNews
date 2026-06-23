@@ -65,4 +65,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindRecentSearchRepository(impl: com.example.newsapp.data.repository.RecentSearchRepositoryImpl): com.example.newsapp.domain.repository.RecentSearchRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindGeoLanguageRepository(impl: com.example.newsapp.data.repository.GeoLanguageRepositoryImpl): com.example.newsapp.domain.repository.GeoLanguageRepository
 }

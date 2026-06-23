@@ -41,6 +41,10 @@ annotation class GamificationDataStore
 @Retention(AnnotationRetention.BINARY)
 annotation class ReadingDataStore
 
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class GeoLanguageDataStore
+
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -103,5 +107,13 @@ object DataStoreModule {
     fun provideReadingDataStore(@ApplicationContext context: Context): DataStore<Preferences> =
         PreferenceDataStoreFactory.create(
             produceFile = { context.preferencesDataStoreFile("reading_prefs") }
+        )
+
+    @Provides
+    @Singleton
+    @GeoLanguageDataStore
+    fun provideGeoLanguageDataStore(@ApplicationContext context: Context): DataStore<Preferences> =
+        PreferenceDataStoreFactory.create(
+            produceFile = { context.preferencesDataStoreFile("geo_language_prefs") }
         )
 }
