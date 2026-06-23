@@ -91,7 +91,8 @@ class HomeViewModel @Inject constructor(
     private val getDynamicCategoriesUseCase: GetDynamicCategoriesUseCase,
     private val localEngagementTracker: com.example.newsapp.domain.tracker.LocalEngagementTracker,
     private val savedStateHandle: SavedStateHandle,
-    private val appTelemetry: com.example.newsapp.domain.util.AppTelemetry
+    private val appTelemetry: com.example.newsapp.domain.util.AppTelemetry,
+    private val syncGeoPreferencesUseCase: com.example.newsapp.domain.usecase.geo.SyncGeoPreferencesUseCase
 ) : ViewModel() {
 
     private val _internalState = MutableStateFlow(
@@ -139,7 +140,12 @@ class HomeViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeUiState())
 
     init {
-        // Initialization if needed
+        // Phase 3: detect the device region on launch, store it locally (respecting any manual
+        // override) and best-effort persist it for signed-in users. Failures are swallowed inside
+        // the use-case — geo is a soft ranking signal and must never block the feed.
+        viewModelScope.launch {
+            syncGeoPreferencesUseCase()
+        }
     }
 
     fun onEvent(event: HomeEvent) {

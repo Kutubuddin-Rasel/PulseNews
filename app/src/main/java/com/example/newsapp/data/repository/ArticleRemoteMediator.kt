@@ -16,6 +16,7 @@ import com.example.newsapp.domain.util.ClockProvider
 import com.example.newsapp.domain.util.ConnectivityMonitor
 import com.example.newsapp.domain.repository.AlgorithmPreferencesRepository
 import com.example.newsapp.domain.repository.FeedMetaRepository
+import com.example.newsapp.domain.repository.GeoLanguageRepository
 import kotlinx.coroutines.flow.first
 import retrofit2.HttpException
 import java.io.IOException
@@ -29,7 +30,8 @@ class ArticleRemoteMediator(
     private val clockProvider: ClockProvider,
     private val telemetry: AppTelemetry,
     private val algorithmPreferencesRepository: AlgorithmPreferencesRepository,
-    private val feedMetaRepository: FeedMetaRepository
+    private val feedMetaRepository: FeedMetaRepository,
+    private val geoLanguageRepository: GeoLanguageRepository
 ) : RemoteMediator<Int, CachedFeedArticleEntity>() {
 
     private val cacheFreshnessMs = 15 * 60 * 1000L
@@ -103,16 +105,23 @@ class ArticleRemoteMediator(
                 }
             }
 
+            // Phase 3: a single geo/language snapshot drives every feed call this load. Reading it
+            // once (rather than per-branch) keeps the region/languages params consistent across the
+            // For-You, firehose, and category paths. Null homeRegion is omitted from the URL by
+            // Retrofit, so an undetected region degrades to the backend's neutral ranking.
+            val geo = geoLanguageRepository.state.first()
+            val region = geo.homeRegion
+
             val response = if (feedKey == "for_you" || feedKey == "firehose") {
                 // If it's firehose, it means all categories, so category = null
                 if (feedKey == "for_you") {
                     val weights = algorithmPreferencesRepository.preferences.first()
                     val isDefault = weights.isNotEmpty() && weights.values.all { it == 0.2f }
-                    
+
                     if (isDefault) {
                         telemetry.info("RemoteMediator", "Unlocking Tier 2 Vector Semantic Matching (weights=null)")
                     }
-                    
+
                     // Emit the backend's CANONICAL category labels (see worker
                     // categories.rs / backend category-taxonomy.ts). The slider
                     // identities are internal (technology/general/...), so translate
@@ -120,13 +129,13 @@ class ArticleRemoteMediator(
                     // slider)→world. A mismatch here silently no-ops the weight in the
                     // For-You bandit SQL (it falls through to the ELSE 1.0 weight).
                     val weightsStr = if (isDefault) null else "tech:${weights["technology"]},politics:${weights["politics"]},world:${weights["general"]},business:${weights["business"]},health:${weights["health"]}"
-                    pulseBackendApi.getForYouFeed(page = page, limit = state.config.pageSize, weights = weightsStr)
+                    pulseBackendApi.getForYouFeed(page = page, limit = state.config.pageSize, weights = weightsStr, region = region)
                 } else {
-                    pulseBackendApi.getNewsFeed(page = page, limit = state.config.pageSize, category = null)
+                    pulseBackendApi.getNewsFeed(page = page, limit = state.config.pageSize, category = null, region = region)
                 }
             } else {
                 // feedKey is a specific category like "tech", "business", etc.
-                pulseBackendApi.getNewsFeed(page = page, limit = state.config.pageSize, category = feedKey)
+                pulseBackendApi.getNewsFeed(page = page, limit = state.config.pageSize, category = feedKey, region = region)
             }
 
             if (response.isSuccessful) {

@@ -63,6 +63,7 @@ class HomeViewModelAuthFlowTest {
     private lateinit var localEngagementTracker: LocalEngagementTracker
     private lateinit var savedStateHandle: SavedStateHandle
     private lateinit var appTelemetry: AppTelemetry
+    private lateinit var syncGeoPreferencesUseCase: com.example.newsapp.domain.usecase.geo.SyncGeoPreferencesUseCase
 
     private val authStateFlow = MutableStateFlow<FirebaseUser?>(null)
 
@@ -102,6 +103,8 @@ class HomeViewModelAuthFlowTest {
         localEngagementTracker = mockk(relaxed = true)
         savedStateHandle = SavedStateHandle(mapOf("home_category_id" to 1)) // For You
         appTelemetry = mockk(relaxed = true)
+        syncGeoPreferencesUseCase = mockk(relaxed = true)
+        coEvery { syncGeoPreferencesUseCase() } returns Unit
 
         viewModel = HomeViewModel(
             getFeedUseCase = getFeedUseCase,
@@ -117,7 +120,8 @@ class HomeViewModelAuthFlowTest {
             getDynamicCategoriesUseCase = getDynamicCategoriesUseCase,
             localEngagementTracker = localEngagementTracker,
             savedStateHandle = savedStateHandle,
-            appTelemetry = appTelemetry
+            appTelemetry = appTelemetry,
+            syncGeoPreferencesUseCase = syncGeoPreferencesUseCase
         )
     }
 

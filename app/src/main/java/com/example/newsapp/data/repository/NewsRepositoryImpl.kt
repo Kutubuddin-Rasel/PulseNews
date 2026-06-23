@@ -42,7 +42,8 @@ class NewsRepositoryImpl @Inject constructor(
     private val telemetry: AppTelemetry,
     private val algorithmPreferencesRepository: AlgorithmPreferencesRepository,
     private val feedMetaRepository: FeedMetaRepository,
-    private val searchResultCache: SearchResultCache
+    private val searchResultCache: SearchResultCache,
+    private val geoLanguageRepository: com.example.newsapp.domain.repository.GeoLanguageRepository
 ) : NewsRepository {
 
     // Single source of truth for the categoryKey → cached-feed key mapping (used by the feed query
@@ -72,7 +73,8 @@ class NewsRepositoryImpl @Inject constructor(
                     clockProvider = clockProvider,
                     telemetry = telemetry,
                     algorithmPreferencesRepository = algorithmPreferencesRepository,
-                    feedMetaRepository = feedMetaRepository
+                    feedMetaRepository = feedMetaRepository,
+                    geoLanguageRepository = geoLanguageRepository
                 )
             } else null,
             pagingSourceFactory = {
