@@ -42,13 +42,16 @@ sealed interface AlgorithmPreferencesEvent {
     data object SaveAndRecalculate : AlgorithmPreferencesEvent
     data object ErrorShown : AlgorithmPreferencesEvent
     data class SetRegion(val code: String) : AlgorithmPreferencesEvent
+    data class SetLanguages(val langs: List<String>) : AlgorithmPreferencesEvent
     data object ResetGeo : AlgorithmPreferencesEvent
 }
 
-/** Region & language affinity surface for the settings screen (Wave 1: region only). */
+/** Region & language affinity surface for the settings screen. */
 data class GeoUiState(
     val homeRegion: String? = null,
-    val isManualOverride: Boolean = false
+    val isManualOverride: Boolean = false,
+    val readableLanguages: List<String> = emptyList(),
+    val languagesIsManualOverride: Boolean = false
 )
 
 @HiltViewModel
@@ -66,7 +69,14 @@ class AlgorithmPreferencesViewModel @Inject constructor(
     // shared GeoLanguageRepository, so changing it here invalidates the Home feed (see HomeViewModel
     // geoToken) without this screen knowing about Paging.
     val geoState: StateFlow<GeoUiState> = geoLanguageRepository.state
-        .map { GeoUiState(homeRegion = it.homeRegion, isManualOverride = it.regionIsManualOverride) }
+        .map {
+            GeoUiState(
+                homeRegion = it.homeRegion,
+                isManualOverride = it.regionIsManualOverride,
+                readableLanguages = it.readableLanguages,
+                languagesIsManualOverride = it.languagesIsManualOverride
+            )
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), GeoUiState())
 
     init {
@@ -108,6 +118,7 @@ class AlgorithmPreferencesViewModel @Inject constructor(
                 }
             }
             is AlgorithmPreferencesEvent.SetRegion -> setRegion(event.code)
+            is AlgorithmPreferencesEvent.SetLanguages -> setLanguages(event.langs)
             is AlgorithmPreferencesEvent.ResetGeo -> resetGeo()
         }
     }
@@ -115,6 +126,12 @@ class AlgorithmPreferencesViewModel @Inject constructor(
     private fun setRegion(code: String) {
         viewModelScope.launch {
             geoLanguageRepository.setManualRegion(code)
+        }
+    }
+
+    private fun setLanguages(langs: List<String>) {
+        viewModelScope.launch {
+            geoLanguageRepository.setManualLanguages(langs)
         }
     }
 

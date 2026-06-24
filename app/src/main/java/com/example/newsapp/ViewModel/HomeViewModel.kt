@@ -171,13 +171,13 @@ class HomeViewModel @Inject constructor(
 
     private data class FeedCacheKey(val filter: FilterUiState, val isAuthenticated: Boolean, val geoToken: Int)
 
-    // Phase 3: a monotonic token over distinct home-region changes. runningFold emits 0 initially,
-    // 1 once the stored/detected region settles on launch, and 2+ on each later user-driven change.
-    // Folding it into FeedCacheKey rebuilds the Pager when the region changes, and geoToken >= 2
-    // flags that rebuild as a deliberate change so the mediator forces a refresh (token 0/1 keep
-    // the launch path honouring the cache TTL).
+    // Phase 3: a monotonic token over distinct home-region OR readable-language changes. runningFold
+    // emits 0 initially, 1 once the stored/detected geo settles on launch, and 2+ on each later
+    // user-driven change. Folding it into FeedCacheKey rebuilds the Pager when either signal
+    // changes, and geoToken >= 2 flags that rebuild as a deliberate change so the mediator forces a
+    // refresh (token 0/1 keep the launch path honouring the cache TTL).
     private val geoToken: Flow<Int> = geoLanguageRepository.state
-        .map { it.homeRegion }
+        .map { it.homeRegion to it.readableLanguages }
         .distinctUntilChanged()
         .runningFold(0) { acc, _ -> acc + 1 }
 

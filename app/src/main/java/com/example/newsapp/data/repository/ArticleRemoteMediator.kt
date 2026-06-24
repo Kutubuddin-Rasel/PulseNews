@@ -119,6 +119,10 @@ class ArticleRemoteMediator(
             // Retrofit, so an undetected region degrades to the backend's neutral ranking.
             val geo = geoLanguageRepository.state.first()
             val region = geo.homeRegion
+            // Wave 2: the readable-language set rides alongside the region as a CSV. An
+            // empty set is omitted from the URL (null) so the backend falls back to its
+            // NULL-tolerant neutral filter rather than a "no languages" near-hard filter.
+            val languages = geo.readableLanguages.takeIf { it.isNotEmpty() }?.joinToString(",")
 
             val response = if (feedKey == "for_you" || feedKey == "firehose") {
                 // If it's firehose, it means all categories, so category = null
@@ -137,13 +141,13 @@ class ArticleRemoteMediator(
                     // slider)→world. A mismatch here silently no-ops the weight in the
                     // For-You bandit SQL (it falls through to the ELSE 1.0 weight).
                     val weightsStr = if (isDefault) null else "tech:${weights["technology"]},politics:${weights["politics"]},world:${weights["general"]},business:${weights["business"]},health:${weights["health"]}"
-                    pulseBackendApi.getForYouFeed(page = page, limit = state.config.pageSize, weights = weightsStr, region = region)
+                    pulseBackendApi.getForYouFeed(page = page, limit = state.config.pageSize, weights = weightsStr, region = region, languages = languages)
                 } else {
-                    pulseBackendApi.getNewsFeed(page = page, limit = state.config.pageSize, category = null, region = region)
+                    pulseBackendApi.getNewsFeed(page = page, limit = state.config.pageSize, category = null, region = region, languages = languages)
                 }
             } else {
                 // feedKey is a specific category like "tech", "business", etc.
-                pulseBackendApi.getNewsFeed(page = page, limit = state.config.pageSize, category = feedKey, region = region)
+                pulseBackendApi.getNewsFeed(page = page, limit = state.config.pageSize, category = feedKey, region = region, languages = languages)
             }
 
             if (response.isSuccessful) {

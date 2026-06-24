@@ -4,20 +4,26 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Done
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -108,6 +114,7 @@ fun AlgorithmSettingsScreen(
             RegionLanguageSection(
                 geoState = geoState,
                 onRegionSelected = { onEvent(AlgorithmPreferencesEvent.SetRegion(it)) },
+                onLanguagesChanged = { onEvent(AlgorithmPreferencesEvent.SetLanguages(it)) },
                 onResetGeo = { onEvent(AlgorithmPreferencesEvent.ResetGeo) }
             )
 
@@ -166,10 +173,20 @@ private val COMMON_REGIONS = listOf(
     "US", "GB", "IN", "CA", "AU", "DE", "FR", "BR", "JP", "SG", "AE", "ZA"
 )
 
+// A curated short list of languages (ISO 639-1 → display label) for the manual override chips.
+// Languages auto-resolved from the region but absent here stay selected silently — "Reset to
+// auto-detect" is the escape hatch to clear a manual override entirely.
+private val COMMON_LANGUAGES = listOf(
+    "en" to "English", "es" to "Español", "fr" to "Français", "de" to "Deutsch",
+    "pt" to "Português", "it" to "Italiano", "ar" to "العربية", "hi" to "हिन्दी",
+    "zh" to "中文", "ja" to "日本語", "ru" to "Русский"
+)
+
 @Composable
 private fun RegionLanguageSection(
     geoState: GeoUiState,
     onRegionSelected: (String) -> Unit,
+    onLanguagesChanged: (List<String>) -> Unit,
     onResetGeo: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -177,6 +194,7 @@ private fun RegionLanguageSection(
     val options = remember(current) {
         (listOfNotNull(current) + COMMON_REGIONS).distinct()
     }
+    val isOverridden = geoState.isManualOverride || geoState.languagesIsManualOverride
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -185,7 +203,7 @@ private fun RegionLanguageSection(
             fontWeight = FontWeight.Bold
         )
         Text(
-            text = "Stories from your region get a gentle boost. We auto-detect this; override it if you prefer a different home region.",
+            text = "Stories from your region get a gentle boost and we show news in languages you read. We auto-detect both; override them if you prefer.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -214,11 +232,43 @@ private fun RegionLanguageSection(
                 }
             }
 
-            if (geoState.isManualOverride) {
+            if (isOverridden) {
                 TextButton(onClick = onResetGeo) {
                     Text("Reset to auto-detect")
                 }
             }
+        }
+
+        LanguageChips(
+            selected = geoState.readableLanguages,
+            onLanguagesChanged = onLanguagesChanged
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LanguageChips(
+    selected: List<String>,
+    onLanguagesChanged: (List<String>) -> Unit
+) {
+    val selectedSet = selected.toSet()
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        COMMON_LANGUAGES.forEach { (code, label) ->
+            val isSelected = code in selectedSet
+            FilterChip(
+                selected = isSelected,
+                onClick = {
+                    // Toggle off the last readable language too — sending an empty set drops the
+                    // languages param entirely, which the backend reads as its neutral fallback.
+                    val next = if (isSelected) selectedSet - code else selectedSet + code
+                    onLanguagesChanged(next.toList())
+                },
+                label = { Text(label) },
+                leadingIcon = if (isSelected) {
+                    { Icon(Icons.Filled.Done, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
+                } else null
+            )
         }
     }
 }
