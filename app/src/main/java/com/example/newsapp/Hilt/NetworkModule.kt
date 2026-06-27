@@ -1,6 +1,5 @@
 package com.example.newsapp.Hilt
 
-import com.example.newsapp.Api.NewsApi
 import com.example.newsapp.BuildConfig
 import com.example.newsapp.domain.util.AppTelemetry
 import dagger.Module
@@ -13,11 +12,13 @@ import okhttp3.Cache
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.converter.moshi.MoshiConverterFactory
 import java.io.File
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
-import com.google.gson.Gson
+import com.squareup.moshi.Moshi
+import com.example.newsapp.data.remote.TelemetryEventAdapter
+import com.example.newsapp.data.remote.VerificationStatusAdapter
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -26,7 +27,11 @@ class NetworkModule {
 
     @Provides
     @Singleton
-    fun provideGson(): Gson = Gson()
+    fun provideMoshi(): Moshi = Moshi.Builder()
+        // Custom adapters first; generated @JsonClass adapters are discovered reflection-free.
+        .add(VerificationStatusAdapter())
+        .add(TelemetryEventAdapter())
+        .build()
 
     @Provides
     @Singleton
@@ -70,11 +75,11 @@ class NetworkModule {
 
     @Provides
     @Singleton
-    fun providesRetrofit(okHttpClient: OkHttpClient): Retrofit {
+    fun providesRetrofit(okHttpClient: OkHttpClient, moshi: Moshi): Retrofit {
         return Retrofit.Builder()
             .baseUrl("https://pulsenewsbackend.me/")
             .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
     }
 

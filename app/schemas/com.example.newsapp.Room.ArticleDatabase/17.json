@@ -1,0 +1,410 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 17,
+    "identityHash": "545b7a2394ea2d09366f9cd2106eb4e2",
+    "entities": [
+      {
+        "tableName": "saved_articles",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`url` TEXT NOT NULL, `backendId` TEXT NOT NULL, `author` TEXT, `content` TEXT, `description` TEXT, `publishedAt` TEXT, `source` TEXT NOT NULL, `title` TEXT NOT NULL, `urlToImage` TEXT, `summary` TEXT, `provenance` TEXT, `regionCode` TEXT, `sourceTier` INTEGER, `gravity_score` REAL, `personalized_score` REAL, `distance` REAL, `taxonomy_categories` TEXT, `taxonomy_tags` TEXT, `taxonomy_mlConfidence` REAL, `taxonomy_id` TEXT, `taxonomy_articleId` TEXT, PRIMARY KEY(`url`))",
+        "fields": [
+          {
+            "fieldPath": "url",
+            "columnName": "url",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "backendId",
+            "columnName": "backendId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "author",
+            "columnName": "author",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "content",
+            "columnName": "content",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "publishedAt",
+            "columnName": "publishedAt",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "urlToImage",
+            "columnName": "urlToImage",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "summary",
+            "columnName": "summary",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "provenance",
+            "columnName": "provenance",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "regionCode",
+            "columnName": "regionCode",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceTier",
+            "columnName": "sourceTier",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "gravity_score",
+            "columnName": "gravity_score",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "personalized_score",
+            "columnName": "personalized_score",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "distance",
+            "columnName": "distance",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "taxonomy.categories",
+            "columnName": "taxonomy_categories",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "taxonomy.tags",
+            "columnName": "taxonomy_tags",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "taxonomy.mlConfidence",
+            "columnName": "taxonomy_mlConfidence",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "taxonomy.id",
+            "columnName": "taxonomy_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "taxonomy.articleId",
+            "columnName": "taxonomy_articleId",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "url"
+          ]
+        }
+      },
+      {
+        "tableName": "cached_feed_articles",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `feedKey` TEXT NOT NULL, `backendId` TEXT NOT NULL, `url` TEXT NOT NULL, `author` TEXT, `content` TEXT, `description` TEXT, `publishedAt` TEXT, `sourceId` TEXT, `sourceName` TEXT NOT NULL, `title` TEXT NOT NULL, `urlToImage` TEXT, `summary` TEXT, `sortOrder` INTEGER NOT NULL, `fetchedAt` INTEGER NOT NULL, `gravity_score` REAL, `personalized_score` REAL, `distance` REAL, `verification_status` TEXT NOT NULL, `signature_protocol` TEXT, `trusted_signer` TEXT, `regionCode` TEXT, `sourceTier` INTEGER, `taxonomyCategories` TEXT, `taxonomyTags` TEXT, `taxonomyMlConfidence` REAL, `taxonomyId` TEXT, `taxonomyArticleId` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "feedKey",
+            "columnName": "feedKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "backendId",
+            "columnName": "backendId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "url",
+            "columnName": "url",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "author",
+            "columnName": "author",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "content",
+            "columnName": "content",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "publishedAt",
+            "columnName": "publishedAt",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceId",
+            "columnName": "sourceId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceName",
+            "columnName": "sourceName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "urlToImage",
+            "columnName": "urlToImage",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "summary",
+            "columnName": "summary",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sortOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fetchedAt",
+            "columnName": "fetchedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gravity_score",
+            "columnName": "gravity_score",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "personalizedScore",
+            "columnName": "personalized_score",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "distance",
+            "columnName": "distance",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "verificationStatus",
+            "columnName": "verification_status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "signatureProtocol",
+            "columnName": "signature_protocol",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "trustedSigner",
+            "columnName": "trusted_signer",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "regionCode",
+            "columnName": "regionCode",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceTier",
+            "columnName": "sourceTier",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "taxonomyCategories",
+            "columnName": "taxonomyCategories",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "taxonomyTags",
+            "columnName": "taxonomyTags",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "taxonomyMlConfidence",
+            "columnName": "taxonomyMlConfidence",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "taxonomyId",
+            "columnName": "taxonomyId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "taxonomyArticleId",
+            "columnName": "taxonomyArticleId",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_cached_feed_articles_feedKey_backendId",
+            "unique": true,
+            "columnNames": [
+              "feedKey",
+              "backendId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_cached_feed_articles_feedKey_backendId` ON `${TABLE_NAME}` (`feedKey`, `backendId`)"
+          },
+          {
+            "name": "index_cached_feed_articles_sourceName",
+            "unique": false,
+            "columnNames": [
+              "sourceName"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_cached_feed_articles_sourceName` ON `${TABLE_NAME}` (`sourceName`)"
+          }
+        ]
+      },
+      {
+        "tableName": "interaction_events",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `articleId` TEXT NOT NULL, `interactionType` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `eventData` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "articleId",
+            "columnName": "articleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "interactionType",
+            "columnName": "interactionType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eventData",
+            "columnName": "eventData",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "trending_topics",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`tag` TEXT NOT NULL, `count` INTEGER NOT NULL, `lastUpdated` INTEGER NOT NULL, PRIMARY KEY(`tag`))",
+        "fields": [
+          {
+            "fieldPath": "tag",
+            "columnName": "tag",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "count",
+            "columnName": "count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUpdated",
+            "columnName": "lastUpdated",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "tag"
+          ]
+        }
+      },
+      {
+        "tableName": "feed_remote_keys",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`feedKey` TEXT NOT NULL, `nextPage` INTEGER, PRIMARY KEY(`feedKey`))",
+        "fields": [
+          {
+            "fieldPath": "feedKey",
+            "columnName": "feedKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nextPage",
+            "columnName": "nextPage",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "feedKey"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '545b7a2394ea2d09366f9cd2106eb4e2')"
+    ]
+  }
+}

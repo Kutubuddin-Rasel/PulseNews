@@ -1,14 +1,18 @@
 package com.example.newsapp.data.remote.dto
 
-import com.google.gson.Gson
-import org.junit.Assert.assertThrows
+import com.squareup.moshi.Moshi
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PulseArticleDtoTest {
 
+    // Plain Moshi resolves the generated PulseArticleDtoJsonAdapter via @JsonClass — no reflection.
+    private val adapter = Moshi.Builder().build().adapter(PulseArticleDto::class.java)
+
     @Test
-    fun `deserialize PulseArticleDto with missing keys throws NullPointerException`() {
-        // Missing required non-nullable fields like link, snippet, pubDate, source
+    fun `deserialize PulseArticleDto with missing keys leaves nullable fields null`() {
         val json = """
             {
                 "id": "1",
@@ -16,11 +20,10 @@ class PulseArticleDtoTest {
             }
         """.trimIndent()
 
-        val gson = Gson()
-        val dto = gson.fromJson(json, PulseArticleDto::class.java)
+        val dto = adapter.fromJson(json)!!
 
-        // With the fix, dto.link is properly nullable, so it will be null instead of throwing an unexpected NPE later.
-        org.junit.Assert.assertNull(dto.link)
+        // link is nullable with no default; an absent key deserializes to null instead of throwing.
+        assertNull(dto.link)
     }
 
     @Test
@@ -37,15 +40,16 @@ class PulseArticleDtoTest {
             }
         """.trimIndent()
 
-        val dto = Gson().fromJson(json, PulseArticleDto::class.java)
+        val dto = adapter.fromJson(json)!!
 
-        org.junit.Assert.assertNotNull(dto.gravity_score)
-        org.junit.Assert.assertEquals(42.5f, dto.gravity_score!!, 0.001f)
+        assertNotNull(dto.gravity_score)
+        assertEquals(42.5f, dto.gravity_score!!, 0.001f)
     }
 
     @Test
     fun `legacy gravity_score json key no longer binds (CONF1)`() {
-        // Documents the contract switch: only currentGravityScore is read now.
+        // Documents the contract switch: only currentGravityScore is read now; the old key is an
+        // unknown field Moshi ignores.
         val json = """
             {
                 "id": "1",
@@ -58,9 +62,9 @@ class PulseArticleDtoTest {
             }
         """.trimIndent()
 
-        val dto = Gson().fromJson(json, PulseArticleDto::class.java)
+        val dto = adapter.fromJson(json)!!
 
-        org.junit.Assert.assertNull(dto.gravity_score)
+        assertNull(dto.gravity_score)
     }
 
     @Test
@@ -77,8 +81,8 @@ class PulseArticleDtoTest {
             }
         """.trimIndent()
 
-        val dto = Gson().fromJson(json, PulseArticleDto::class.java)
+        val dto = adapter.fromJson(json)!!
 
-        org.junit.Assert.assertEquals("A short recap.", dto.summary)
+        assertEquals("A short recap.", dto.summary)
     }
 }

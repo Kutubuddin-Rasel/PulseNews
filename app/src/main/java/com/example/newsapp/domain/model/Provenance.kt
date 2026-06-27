@@ -1,5 +1,7 @@
 package com.example.newsapp.domain.model
 
+import com.squareup.moshi.JsonClass
+
 sealed interface VerificationStatus {
     val name: String
 
@@ -15,6 +17,7 @@ sealed interface VerificationStatus {
     }
 }
 
+@JsonClass(generateAdapter = true)
 data class Provenance(
     val status: VerificationStatus,
     val verificationMethod: String?,

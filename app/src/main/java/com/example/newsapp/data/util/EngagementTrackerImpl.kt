@@ -13,17 +13,20 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import javax.inject.Inject
 import javax.inject.Singleton
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
 import com.example.newsapp.domain.manager.FirestoreSyncManager
 import com.example.newsapp.domain.tracker.EngagementTracker
 
 @Singleton
 class EngagementTrackerImpl @Inject constructor(
     @GamificationDataStore private val dataStore: DataStore<Preferences>,
-    private val firestoreSyncManager: FirestoreSyncManager
+    private val firestoreSyncManager: FirestoreSyncManager,
+    moshi: Moshi
 ) : EngagementTracker {
-    private val gson = Gson()
+    private val categoryCountsAdapter = moshi.adapter<Map<String, Int>>(
+        Types.newParameterizedType(Map::class.java, String::class.java, Int::class.javaObjectType)
+    )
 
     companion object {
         val CURRENT_STREAK = intPreferencesKey("current_streak")
@@ -36,8 +39,7 @@ class EngagementTrackerImpl @Inject constructor(
 
     override val profile: Flow<GamificationProfile> = dataStore.data.map { prefs ->
         val categoryJson = prefs[CATEGORY_COUNTS] ?: "{}"
-        val type = object : TypeToken<Map<String, Int>>() {}.type
-        val categoryCounts: Map<String, Int> = gson.fromJson(categoryJson, type)
+        val categoryCounts: Map<String, Int> = categoryCountsAdapter.fromJson(categoryJson) ?: emptyMap()
 
         GamificationProfile(
             currentStreak = prefs[CURRENT_STREAK] ?: 0,
@@ -88,12 +90,12 @@ class EngagementTrackerImpl @Inject constructor(
 
             // Category tracking
             val categoryJson = prefs[CATEGORY_COUNTS] ?: "{}"
-            val type = object : TypeToken<MutableMap<String, Int>>() {}.type
-            val categoryCounts: MutableMap<String, Int> = gson.fromJson(categoryJson, type)
-            
+            val categoryCounts: MutableMap<String, Int> =
+                (categoryCountsAdapter.fromJson(categoryJson) ?: emptyMap()).toMutableMap()
+
             val safeCategory = category.lowercase().trim()
             categoryCounts[safeCategory] = (categoryCounts[safeCategory] ?: 0) + 1
-            prefs[CATEGORY_COUNTS] = gson.toJson(categoryCounts)
+            prefs[CATEGORY_COUNTS] = categoryCountsAdapter.toJson(categoryCounts)
 
             updatedProfile = GamificationProfile(
                 currentStreak = currentStreak,
@@ -124,7 +126,7 @@ class EngagementTrackerImpl @Inject constructor(
                 prefs[LONGEST_STREAK] = remoteProfile.longestStreak
                 prefs[TOTAL_ARTICLES] = remoteProfile.totalArticlesRead
                 prefs[LAST_READ_DATE] = remoteProfile.lastReadDateEpochDay
-                prefs[CATEGORY_COUNTS] = gson.toJson(remoteProfile.categoryReadCounts)
+                prefs[CATEGORY_COUNTS] = categoryCountsAdapter.toJson(remoteProfile.categoryReadCounts)
                 prefs[LAST_SYNCED] = remoteProfile.lastSyncedAt
             }
         }
