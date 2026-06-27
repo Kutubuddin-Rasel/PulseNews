@@ -75,4 +75,28 @@ class ArticleDatabaseMigrationTest {
         }
         migrated.close()
     }
+
+    /**
+     * v17 → v18: keyset pagination adds the nullable `nextCursor` column to feed_remote_keys.
+     * A pre-existing v17 row (page-based paging key) must survive [DatabaseMigrations.MIGRATION_17_18]
+     * — a nullable ADD COLUMN never drops data — and read back `nextCursor == NULL`.
+     */
+    @Test
+    fun migrate17To18_addsNextCursorColumn_preservesRows() {
+        helper.createDatabase(testDb, 17).apply {
+            execSQL("INSERT INTO feed_remote_keys (feedKey, nextPage) VALUES ('firehose', 2)")
+            close()
+        }
+
+        val migrated = helper.runMigrationsAndValidate(
+            testDb, 18, /* validateDroppedTables = */ true, DatabaseMigrations.MIGRATION_17_18
+        )
+
+        migrated.query("SELECT nextPage, nextCursor FROM feed_remote_keys WHERE feedKey = 'firehose'").use {
+            check(it.moveToFirst()) { "seeded feed_remote_keys row was lost across the migration" }
+            check(it.getInt(0) == 2) { "nextPage must be preserved across the migration" }
+            check(it.isNull(1)) { "pre-existing row's nextCursor must default to NULL" }
+        }
+        migrated.close()
+    }
 }

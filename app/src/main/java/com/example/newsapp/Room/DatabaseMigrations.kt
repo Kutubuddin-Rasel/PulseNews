@@ -39,6 +39,19 @@ object DatabaseMigrations {
         }
     }
 
+    /**
+     * v17 → v18 — keyset pagination adds the opaque `nextCursor` to feed_remote_keys.
+     *
+     * A nullable ADD COLUMN is non-destructive: every existing v17 row keeps its `nextPage` and
+     * reads `nextCursor` as NULL, so in-flight page-based feeds (incl. for_you) are unaffected.
+     * The firehose/category feeds switch to seeking by this cursor (see ArticleRemoteMediator).
+     */
+    val MIGRATION_17_18 = object : Migration(17, 18) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE feed_remote_keys ADD COLUMN nextCursor TEXT")
+        }
+    }
+
     /** All migrations in ascending order. Spread into the builder in [com.example.newsapp.Hilt.DatabaseModule]. */
-    val ALL: Array<Migration> = arrayOf(MIGRATION_16_17)
+    val ALL: Array<Migration> = arrayOf(MIGRATION_16_17, MIGRATION_17_18)
 }

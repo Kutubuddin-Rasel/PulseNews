@@ -19,5 +19,9 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "feed_remote_keys")
 data class FeedRemoteKey(
     @PrimaryKey val feedKey: String,
-    val nextPage: Int?
+    val nextPage: Int?,
+    // Keyset pagination: the opaque cursor to fetch the next page of a composite-scored feed
+    // (firehose / category). `nextCursor == null` means the end of pagination has been reached.
+    // `for_you` stays page-based and ignores this column (it keeps using `nextPage`).
+    val nextCursor: String? = null
 )

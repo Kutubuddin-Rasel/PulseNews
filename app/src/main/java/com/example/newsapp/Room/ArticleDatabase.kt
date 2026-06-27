@@ -17,7 +17,10 @@ import com.example.newsapp.module.Article
     // The concrete v16→v17 step is implemented in DatabaseMigrations.MIGRATION_16_17; upgrades are
     // no longer destructive (see DatabaseModule). Every future version bump MUST ship a Migration +
     // a MigrationTest validated against the exported JSON.
-    version = 17,
+    //
+    // v18: keyset pagination adds the nullable feed_remote_keys.nextCursor column
+    // (DatabaseMigrations.MIGRATION_17_18) so firehose/category feeds seek by opaque cursor.
+    version = 18,
     exportSchema = true
 )
 @TypeConverters(TypeConverter::class)
