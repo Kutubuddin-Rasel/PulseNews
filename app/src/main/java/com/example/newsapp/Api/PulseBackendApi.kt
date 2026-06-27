@@ -25,7 +25,8 @@ interface PulseBackendApi {
         @Query("category") category: String? = null,
         @Query("edition") edition: String? = null,
         @Query("region") region: String? = null,
-        @Query("languages") languages: String? = null
+        @Query("languages") languages: String? = null,
+        @Query("cursor") cursor: String? = null
     ): Response<List<PulseArticleDto>>
 
     @Headers("X-Pulse-Auth: required")

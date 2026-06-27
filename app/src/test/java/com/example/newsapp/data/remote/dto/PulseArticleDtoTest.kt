@@ -85,4 +85,34 @@ class PulseArticleDtoTest {
 
         assertEquals("A short recap.", dto.summary)
     }
+
+    @Test
+    fun `opaque feed cursor is parsed from the payload`() {
+        val json = """
+            {
+                "id": "1",
+                "title": "T",
+                "cursor": "CUR123"
+            }
+        """.trimIndent()
+
+        val dto = adapter.fromJson(json)!!
+
+        assertEquals("CUR123", dto.cursor)
+    }
+
+    @Test
+    fun `absent cursor leaves the field null (additive, backward compatible)`() {
+        // Older backend responses carry no cursor; the field is nullable so they still parse.
+        val json = """
+            {
+                "id": "1",
+                "title": "T"
+            }
+        """.trimIndent()
+
+        val dto = adapter.fromJson(json)!!
+
+        assertNull(dto.cursor)
+    }
 }

@@ -47,5 +47,9 @@ data class PulseArticleDto(
     @Json(name = "currentGravityScore") val gravity_score: Float? = null,
     @Json(name = "personalized_score") val personalized_score: Double? = null,
     @Json(name = "distance") val distance: Double? = null,
-    @Json(name = "taxonomy") val taxonomy: ArticleTaxonomyDto? = null
+    @Json(name = "taxonomy") val taxonomy: ArticleTaxonomyDto? = null,
+    // Keyset pagination: opaque (score,id) cursor for this row. The mediator sends the
+    // last item's cursor as `?cursor=` on APPEND. Additive + nullable so older backend
+    // responses (no cursor) still parse.
+    @Json(name = "cursor") val cursor: String? = null
 )
