@@ -5,8 +5,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.newsapp.decodeNavUrl
 import com.example.newsapp.domain.model.UiEvent
-import com.example.newsapp.domain.repository.NewsRepository
-import com.example.newsapp.domain.repository.SavedArticleRepository
+import com.example.newsapp.domain.usecase.news.ResolveArticleUseCase
+import com.example.newsapp.domain.usecase.saved.CheckArticleSavedUseCase
+import com.example.newsapp.domain.usecase.saved.DeleteArticleUseCase
+import com.example.newsapp.domain.usecase.saved.SaveArticleUseCase
 import com.example.newsapp.module.Article
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -26,56 +28,58 @@ import com.example.newsapp.domain.util.OfflineHtmlCache
 import com.example.newsapp.domain.util.ParsedArticle
 import com.example.newsapp.domain.util.HtmlParser
 import com.example.newsapp.domain.util.tts.TtsEngine
-import com.example.newsapp.data.util.EngagementTracker
-import com.example.newsapp.data.util.AiSummarizer
-import com.example.newsapp.data.util.AiSummaryResult
-import com.example.newsapp.data.util.nlp.TextRankSummarizer
+import com.example.newsapp.domain.tracker.EngagementTracker
+import com.example.newsapp.domain.util.AiSummarizer
+import com.example.newsapp.domain.util.AiSummaryResult
+import com.example.newsapp.data.util.nlp.LocalSummarizer
 import com.example.newsapp.domain.util.ArticleBlock
-import com.example.newsapp.data.util.TelemetryManager
+import com.example.newsapp.domain.util.AppTelemetry
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.flowOn
 
-sealed class ReaderState {
-    object Loading : ReaderState()
-    data class Success(val article: ParsedArticle) : ReaderState()
-    data class Error(val message: String) : ReaderState()
+sealed interface ReaderState {
+    data object Loading : ReaderState
+    data class Success(val article: ParsedArticle) : ReaderState
+    data class Error(val message: String) : ReaderState
 }
 
-sealed class AiState {
-    object Idle : AiState()
-    object Loading : AiState()
-    data class Success(val summary: String) : AiState()
-    data class SuccessFallback(val summary: String) : AiState()
-    data class Error(val message: String) : AiState()
+sealed interface AiState {
+    data object Idle : AiState
+    data object Loading : AiState
+    data class Success(val summary: String) : AiState
+    data class SuccessFallback(val summary: String) : AiState
+    data class Error(val message: String) : AiState
 }
 
-sealed class AudioState {
-    object Idle : AudioState()
-    object Synthesizing : AudioState()
-    data class Ready(val uri: android.net.Uri) : AudioState()
-    data class Error(val message: String) : AudioState()
+sealed interface AudioState {
+    data object Idle : AudioState
+    data object Synthesizing : AudioState
+    data class Ready(val uri: android.net.Uri) : AudioState
+    data class Error(val message: String) : AudioState
 }
 
 @HiltViewModel
 class WebScreenViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val newsRepository: NewsRepository,
-    private val savedArticleRepository: SavedArticleRepository,
+    private val resolveArticleUseCase: ResolveArticleUseCase,
+    private val checkArticleSavedUseCase: CheckArticleSavedUseCase,
+    private val saveArticleUseCase: SaveArticleUseCase,
+    private val deleteArticleUseCase: DeleteArticleUseCase,
     private val connectivityMonitor: ConnectivityMonitor,
     private val offlineHtmlCache: OfflineHtmlCache,
     private val aiSummarizer: AiSummarizer,
+    private val localSummarizer: LocalSummarizer,
     private val ttsEngine: TtsEngine,
     private val engagementTracker: EngagementTracker,
-    private val telemetryManager: TelemetryManager
+    private val appTelemetry: AppTelemetry
 ) : ViewModel() {
 
     private val encodedUrl: String = savedStateHandle.get<String>("url").orEmpty()
     val decodedUrl: String = decodeNavUrl(encodedUrl)
 
     val article: StateFlow<Article?> = flow {
-        val fetched = savedArticleRepository.articleByUrl(decodedUrl)
-            ?: newsRepository.cachedArticleByUrl(decodedUrl)
-        emit(fetched)
+        emit(resolveArticleUseCase(decodedUrl))
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -88,7 +92,7 @@ class WebScreenViewModel @Inject constructor(
     private var hasRecordedReadForThisArticle = false
 
     val isSaved: StateFlow<Boolean> = flow {
-        val initialSaved = savedArticleRepository.isSaved(decodedUrl)
+        val initialSaved = checkArticleSavedUseCase(decodedUrl)
         _isSavedMutable.value = initialSaved
         _isSavedMutable.collect { if (it != null) emit(it) }
     }.stateIn(
@@ -103,26 +107,26 @@ class WebScreenViewModel @Inject constructor(
     private val _isOnline = MutableStateFlow(true)
     val isOnline: StateFlow<Boolean> = _isOnline
 
-    private val okHttpClient = okhttp3.OkHttpClient()
-
     val readerState: StateFlow<ReaderState> = flow {
         emit(ReaderState.Loading)
-        val online = connectivityMonitor.isOnline()
-        var htmlToParse: String? = null
-        if (online) {
+        // W5: serve cache-first. Reader HTML per URL is effectively immutable, so a previously
+        // read article opens instantly and works offline instead of re-scraping the publisher on
+        // every open (heavy data + latency + anti-scraping fragility).
+        var htmlToParse: String? = offlineHtmlCache.getCachedHtml(decodedUrl)
+        if (htmlToParse == null && connectivityMonitor.isOnline()) {
             try {
                 val document = org.jsoup.Jsoup.connect(decodedUrl)
                     .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
                     .timeout(10000)
                     .get()
                 htmlToParse = document.outerHtml()
+                // Persist what we just fetched so subsequent opens are cache-first / offline-capable.
+                htmlToParse?.let { offlineHtmlCache.cacheHtml(decodedUrl, it) }
             } catch (e: Exception) {
-                htmlToParse = offlineHtmlCache.getCachedHtml(decodedUrl)
+                htmlToParse = null
             }
-        } else {
-            htmlToParse = offlineHtmlCache.getCachedHtml(decodedUrl)
         }
-        
+
         if (htmlToParse != null) {
             emit(ReaderState.Success(HtmlParser.parse(htmlToParse)))
         } else {
@@ -143,43 +147,72 @@ class WebScreenViewModel @Inject constructor(
 
     init {
         _isOnline.value = connectivityMonitor.isOnline()
-        
+
+        // W4: do NOT auto-call the costed/rate-limited backend summary on every open. If the feed
+        // already carried a globally-cached summary (CONF2), surface it for free; otherwise stay
+        // Idle and wait for an explicit user "Summarize" action via requestSummary().
         viewModelScope.launch {
             readerState.collect { state ->
                 if (state is ReaderState.Success && _aiSummaryState.value == AiState.Idle) {
-                    _aiSummaryState.value = AiState.Loading
-                    // Take up to 1500 words to stay within safe token limits and maintain speed
-                    val fullText = state.article.blocks
-                        .filterIsInstance<ArticleBlock.Text>()
-                        .joinToString("\n\n") { it.content }
-                    val truncatedText = fullText.split("\\s+".toRegex()).take(1500).joinToString(" ")
-                    
-                    val backendId = this@WebScreenViewModel.article.value?.backendId
-                    if (backendId.isNullOrEmpty()) {
-                        _aiSummaryState.value = AiState.Error("Article ID not found.")
-                        return@collect
+                    val feedSummary = article.value?.summary?.takeIf { it.isNotBlank() }
+                    if (feedSummary != null) {
+                        _aiSummaryState.value = AiState.Success(feedSummary)
                     }
-                    
-                    val result = aiSummarizer.generateTlDr(backendId, truncatedText)
-                    when (result) {
-                        is AiSummaryResult.Success -> {
-                            Log.d("WebScreenVM", "AI Summary Success for $backendId")
-                            _aiSummaryState.value = AiState.Success(result.summary)
-                        }
-                        is AiSummaryResult.RateLimitExceeded -> {
-                            Log.w("WebScreenVM", "AI Summary RateLimited for $backendId. Triggering Extractive NLP Fallback.")
-                            val textRankSummarizer = TextRankSummarizer()
-                            val fallbackSummary = textRankSummarizer.summarize(truncatedText, state.article.title)
-                            _aiSummaryState.value = AiState.SuccessFallback(fallbackSummary)
-                        }
-                        is AiSummaryResult.Error -> {
-                            Log.e("WebScreenVM", "AI Summary Error for $backendId: ${result.message}")
-                            if (result.message == "GENERATION_FAILED") {
-                                _aiSummaryState.value = AiState.Error("Unable to generate an AI summary for this article.")
-                            } else {
-                                _aiSummaryState.value = AiState.Error(result.message)
-                            }
-                        }
+                }
+            }
+        }
+    }
+
+    /**
+     * W4: lazy, user-triggered summary. No-op if a summary is already shown or in flight, so the
+     * result is effectively cached for the article's reader session. Calls the costed backend
+     * endpoint only on explicit request; on rate-limit, falls back to on-device extractive NLP
+     * run off the main thread (W1 — TextRank is O(n²) over up to 1500 words).
+     */
+    fun requestSummary() {
+        when (_aiSummaryState.value) {
+            is AiState.Loading, is AiState.Success, is AiState.SuccessFallback -> return
+            else -> { /* Idle or Error: proceed */ }
+        }
+
+        val state = readerState.value
+        if (state !is ReaderState.Success) {
+            _aiSummaryState.value = AiState.Error("Article content is still loading.")
+            return
+        }
+
+        _aiSummaryState.value = AiState.Loading
+        viewModelScope.launch {
+            // Take up to 1500 words to stay within safe token limits and maintain speed.
+            val fullText = state.article.blocks
+                .filterIsInstance<ArticleBlock.Text>()
+                .joinToString("\n\n") { it.content }
+            val truncatedText = fullText.split("\\s+".toRegex()).take(1500).joinToString(" ")
+
+            val backendId = article.value?.backendId
+            if (backendId.isNullOrEmpty()) {
+                _aiSummaryState.value = AiState.Error("Article ID not found.")
+                return@launch
+            }
+
+            when (val result = aiSummarizer.generateTlDr(backendId, truncatedText)) {
+                is AiSummaryResult.Success -> {
+                    Log.d("WebScreenVM", "AI Summary Success for $backendId")
+                    _aiSummaryState.value = AiState.Success(result.summary)
+                }
+                is AiSummaryResult.RateLimitExceeded -> {
+                    Log.w("WebScreenVM", "AI Summary RateLimited for $backendId. Extractive NLP fallback.")
+                    val fallbackSummary = withContext(Dispatchers.Default) {
+                        localSummarizer.summarize(truncatedText, state.article.title)
+                    }
+                    _aiSummaryState.value = AiState.SuccessFallback(fallbackSummary)
+                }
+                is AiSummaryResult.Error -> {
+                    Log.e("WebScreenVM", "AI Summary Error for $backendId: ${result.message}")
+                    _aiSummaryState.value = if (result.message == "GENERATION_FAILED") {
+                        AiState.Error("Unable to generate an AI summary for this article.")
+                    } else {
+                        AiState.Error(result.message)
                     }
                 }
             }
@@ -194,10 +227,10 @@ class WebScreenViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            if (savedArticleRepository.isSaved(candidate.url)) {
+            if (checkArticleSavedUseCase(candidate.url)) {
                 _events.emit(UiEvent.AlreadySaved())
             } else {
-                savedArticleRepository.saveArticle(candidate)
+                saveArticleUseCase(candidate)
                 _isSavedMutable.value = true
                 _events.emit(UiEvent.Saved())
             }
@@ -212,12 +245,12 @@ class WebScreenViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            if (savedArticleRepository.isSaved(candidate.url)) {
-                savedArticleRepository.deleteArticle(candidate)
+            if (checkArticleSavedUseCase(candidate.url)) {
+                deleteArticleUseCase(candidate)
                 _isSavedMutable.value = false
                 _events.emit(UiEvent.Generic("Removed from saved"))
             } else {
-                savedArticleRepository.saveArticle(candidate)
+                saveArticleUseCase(candidate)
                 _isSavedMutable.value = true
                 _events.emit(UiEvent.Saved())
             }
@@ -257,8 +290,12 @@ class WebScreenViewModel @Inject constructor(
         if (!hasRecordedReadForThisArticle) {
             hasRecordedReadForThisArticle = true
             viewModelScope.launch {
-                // In a real app we'd get the category from the article object. Defaulting to general.
-                engagementTracker.recordArticleRead("general")
+                // EG2: attribute the read to the article's real primary category (from taxonomy) so
+                // engagement isn't all bucketed under "general"; fall back only when truly unknown.
+                val category = article.value?.taxonomy?.categories?.firstOrNull()
+                    ?.takeIf { it.isNotBlank() }
+                    ?: "general"
+                engagementTracker.recordArticleRead(category)
             }
         }
     }
@@ -268,6 +305,6 @@ class WebScreenViewModel @Inject constructor(
     fun recordDwell(scrollDepthPercent: Int) {
         val durationSeconds = (System.currentTimeMillis() - enterTimeMs) / 1000
         val backendId = article.value?.backendId ?: decodedUrl
-        telemetryManager.trackDwell(backendId, durationSeconds, scrollDepthPercent)
+        appTelemetry.trackReadDeep(backendId, durationSeconds, scrollDepthPercent)
     }
 }

@@ -26,13 +26,33 @@ import com.example.newsapp.ui.theme.ReaderBody
 import com.example.newsapp.ui.tokens.*
 
 @Composable
-fun AiSummaryCard(aiState: AiState, modifier: Modifier = Modifier) {
-    if (aiState is AiState.Idle) return
+fun AiSummaryCard(
+    aiState: AiState,
+    onSummarizeClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // W4: summaries are lazy. When idle (no feed-supplied summary), offer an explicit action
+    // instead of silently auto-calling the costed backend endpoint on every open.
+    if (aiState is AiState.Idle) {
+        OutlinedButton(
+            onClick = onSummarizeClick,
+            modifier = modifier.fillMaxWidth(),
+        ) {
+            Icon(
+                imageVector = Icons.Default.AutoAwesome,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(NewsSpacing.md))
+            Text("Summarize with Pulse AI")
+        }
+        return
+    }
 
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceContainerLowest,
-        shape = RoundedCornerShape(NewsRadius.card),
+        shape = MaterialTheme.shapes.large,
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column {
@@ -76,17 +96,17 @@ private fun AiHeader(state: AiState) {
         val isError = state is AiState.Error
         val isFallback = state is AiState.SuccessFallback
         Box(
-            Modifier.size(32.dp).clip(RoundedCornerShape(NewsRadius.sm))
+            Modifier.size(32.dp).clip(MaterialTheme.shapes.small)
                 .background(if (isError) MaterialTheme.colorScheme.errorContainer else Color.Transparent),
             contentAlignment = Alignment.Center,
         ) {
             if (!isError) {
-                Box(Modifier.matchParentSize().background(AccentGradient, RoundedCornerShape(NewsRadius.sm)))
+                Box(Modifier.matchParentSize().background(AccentGradient, MaterialTheme.shapes.small))
             }
             Icon(
                 imageVector = if (isError) Icons.Default.ErrorOutline else if (isFallback) Icons.Default.FormatListBulleted else Icons.Default.AutoAwesome,
                 contentDescription = if (isError) "Error" else if (isFallback) "Key Excerpts" else "AI Generated",
-                tint = if (isError) MaterialTheme.colorScheme.onErrorContainer else Color.White,
+                tint = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(18.dp),
             )
         }
@@ -94,7 +114,6 @@ private fun AiHeader(state: AiState) {
         Text(
             if (state is AiState.Error) "Couldn\u2019t generate summary" else if (isFallback) "Key Excerpts \uD83D\uDCCC" else "Pulse AI Summary",
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
             color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
         )
         Spacer(Modifier.weight(1f))
@@ -121,14 +140,14 @@ private fun AiLoading() {
         label = "alpha",
     )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.fillMaxWidth(0.85f).height(10.dp).clip(RoundedCornerShape(6.dp))
+        Box(Modifier.fillMaxWidth(0.85f).height(10.dp).clip(MaterialTheme.shapes.extraSmall)
             .background(MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)))
-        Box(Modifier.fillMaxWidth(0.96f).height(10.dp).clip(RoundedCornerShape(6.dp))
+        Box(Modifier.fillMaxWidth(0.96f).height(10.dp).clip(MaterialTheme.shapes.extraSmall)
             .background(MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)))
-        Box(Modifier.fillMaxWidth(0.60f).height(10.dp).clip(RoundedCornerShape(6.dp))
+        Box(Modifier.fillMaxWidth(0.60f).height(10.dp).clip(MaterialTheme.shapes.extraSmall)
             .background(MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)))
         Spacer(Modifier.height(2.dp))
-        Box(Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(99.dp))
+        Box(Modifier.fillMaxWidth().height(3.dp).clip(MaterialTheme.shapes.extraLarge)
             .background(AccentGradient))
     }
 }

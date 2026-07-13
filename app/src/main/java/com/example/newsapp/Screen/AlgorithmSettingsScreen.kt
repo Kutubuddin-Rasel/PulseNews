@@ -1,5 +1,6 @@
 package com.example.newsapp.Screen
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,21 +25,47 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.newsapp.ViewModel.AlgorithmPreferencesViewModel
+import com.example.newsapp.ViewModel.AlgorithmPreferencesEvent
+import com.example.newsapp.ViewModel.AlgorithmWeightsUiState
+
+@Composable
+fun AlgorithmSettingsRoute(
+    onNavigateBack: () -> Unit
+) {
+    val viewModel: AlgorithmPreferencesViewModel = hiltViewModel()
+    val uiState by viewModel.uiState.collectAsState()
+
+    AlgorithmSettingsScreen(
+        uiState = uiState,
+        onEvent = viewModel::onEvent,
+        onNavigateBack = onNavigateBack
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlgorithmSettingsScreen(
-    onNavigateBack: () -> Unit,
-    viewModel: AlgorithmPreferencesViewModel = hiltViewModel()
+    uiState: AlgorithmWeightsUiState,
+    onEvent: (AlgorithmPreferencesEvent) -> Unit,
+    onNavigateBack: () -> Unit
 ) {
-    val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
+    val context = LocalContext.current
+
+    LaunchedEffect(uiState) {
+        if (uiState is AlgorithmWeightsUiState.Content && uiState.errorMessage != null) {
+            Toast.makeText(context, uiState.errorMessage, Toast.LENGTH_LONG).show()
+            onEvent(AlgorithmPreferencesEvent.ErrorShown)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -66,37 +93,44 @@ fun AlgorithmSettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            AlgorithmTopicSlider(
-                title = "Technology & AI",
-                value = uiState.tech,
-                onValueChange = { viewModel.updateWeights(it, uiState.politics, uiState.global, uiState.business, uiState.health) }
-            )
-            AlgorithmTopicSlider(
-                title = "Politics & Government",
-                value = uiState.politics,
-                onValueChange = { viewModel.updateWeights(uiState.tech, it, uiState.global, uiState.business, uiState.health) }
-            )
-            AlgorithmTopicSlider(
-                title = "Business & Economy",
-                value = uiState.business,
-                onValueChange = { viewModel.updateWeights(uiState.tech, uiState.politics, uiState.global, it, uiState.health) }
-            )
-            AlgorithmTopicSlider(
-                title = "Global News",
-                value = uiState.global,
-                onValueChange = { viewModel.updateWeights(uiState.tech, uiState.politics, it, uiState.business, uiState.health) }
-            )
-            AlgorithmTopicSlider(
-                title = "Health & Wellness",
-                value = uiState.health,
-                onValueChange = { viewModel.updateWeights(uiState.tech, uiState.politics, uiState.global, uiState.business, it) }
-            )
+            when (val state = uiState) {
+                is AlgorithmWeightsUiState.Loading -> {
+                    androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                }
+                is AlgorithmWeightsUiState.Content -> {
+                    AlgorithmTopicSlider(
+                        title = "Technology & AI",
+                        value = state.tech,
+                        onValueChange = { onEvent(AlgorithmPreferencesEvent.UpdateWeights(it, state.politics, state.global, state.business, state.health)) }
+                    )
+                    AlgorithmTopicSlider(
+                        title = "Politics & Government",
+                        value = state.politics,
+                        onValueChange = { onEvent(AlgorithmPreferencesEvent.UpdateWeights(state.tech, it, state.global, state.business, state.health)) }
+                    )
+                    AlgorithmTopicSlider(
+                        title = "Business & Economy",
+                        value = state.business,
+                        onValueChange = { onEvent(AlgorithmPreferencesEvent.UpdateWeights(state.tech, state.politics, state.global, it, state.health)) }
+                    )
+                    AlgorithmTopicSlider(
+                        title = "Global News",
+                        value = state.global,
+                        onValueChange = { onEvent(AlgorithmPreferencesEvent.UpdateWeights(state.tech, state.politics, it, state.business, state.health)) }
+                    )
+                    AlgorithmTopicSlider(
+                        title = "Health & Wellness",
+                        value = state.health,
+                        onValueChange = { onEvent(AlgorithmPreferencesEvent.UpdateWeights(state.tech, state.politics, state.global, state.business, it)) }
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.weight(1f))
 
             Button(
                 onClick = {
-                    viewModel.saveAndRecalculate()
+                    onEvent(AlgorithmPreferencesEvent.SaveAndRecalculate)
                     onNavigateBack()
                 },
                 modifier = Modifier.fillMaxWidth(),

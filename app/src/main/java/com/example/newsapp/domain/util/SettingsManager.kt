@@ -13,7 +13,22 @@ import javax.inject.Singleton
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
 
-enum class ThemePreference { SYSTEM, LIGHT, DARK }
+sealed interface ThemePreference {
+    val name: String
+
+    data object SYSTEM : ThemePreference { override val name = "SYSTEM" }
+    data object LIGHT : ThemePreference { override val name = "LIGHT" }
+    data object DARK : ThemePreference { override val name = "DARK" }
+
+    companion object {
+        fun valueOf(value: String): ThemePreference = when (value) {
+            "SYSTEM" -> SYSTEM
+            "LIGHT" -> LIGHT
+            "DARK" -> DARK
+            else -> throw IllegalArgumentException("No object com.example.newsapp.domain.util.ThemePreference.$value")
+        }
+    }
+}
 
 @Singleton
 class SettingsManager @Inject constructor(@ApplicationContext private val context: Context) {

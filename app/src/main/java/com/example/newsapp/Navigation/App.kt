@@ -32,7 +32,7 @@ import com.example.newsapp.Screen.ArticleDetailScreen
 import com.example.newsapp.Screen.HomeScreen
 import com.example.newsapp.Screen.NotificationPreferencesScreen
 import com.example.newsapp.Screen.PulseProfileScreen
-import com.example.newsapp.Screen.SavedArticle
+
 import com.example.newsapp.Screen.SettingsScreen
 import com.example.newsapp.Screen.WebScreen
 import com.example.newsapp.ui.components.LocalPulseSnackbar
@@ -101,45 +101,10 @@ fun App() {
                 }
             }
         ) { paddingValues ->
-        NavHost(
-            navController = navController,
-            startDestination = Routes.home,
-            modifier = Modifier.padding(bottom = if (showBottomBar) paddingValues.calculateBottomPadding() else 0.dp)
-        ) {
-            composable(Routes.home) { HomeScreen(navController) }
-            composable(Routes.search) { com.example.newsapp.Screen.SearchScreen(navController) }
-            composable(Routes.saved) { SavedArticle(navController) }
-            composable(Routes.profile) { PulseProfileScreen() }
-            composable(Routes.settings) {
-                SettingsScreen(
-                    onNavigateToNotifications = {
-                        navController.navigate(Routes.notificationPreferences)
-                    },
-                    onNavigateToAlgorithm = {
-                        navController.navigate(Routes.algorithmSettings)
-                    }
-                )
-            }
-            composable(Routes.notificationPreferences) {
-                NotificationPreferencesScreen(onNavigateBack = { navController.popBackStack() })
-            }
-
-            composable(Routes.algorithmSettings) {
-                AlgorithmSettingsScreen(onNavigateBack = { navController.popBackStack() })
-            }
-            composable(
-                route = Routes.articleDetailPattern,
-                arguments = listOf(navArgument(Routes.articleUrlArg) { type = NavType.StringType })
-            ) {
-                ArticleDetailScreen(navController)
-            }
-            composable(
-                route = Routes.webPagePattern,
-                arguments = listOf(navArgument(Routes.articleUrlArg) { type = NavType.StringType })
-            ) {
-                WebScreen(navController)
-            }
+            NewsNavGraph(
+                navController = navController,
+                modifier = Modifier.padding(bottom = if (showBottomBar) paddingValues.calculateBottomPadding() else 0.dp)
+            )
         }
     }
-}
 }

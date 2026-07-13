@@ -9,7 +9,4 @@ data class TelemetryEventDto(
     val timestamp: Long
 )
 
-@Keep
-data class TelemetryBatchRequest(
-    val events: List<TelemetryEventDto>
-)
+

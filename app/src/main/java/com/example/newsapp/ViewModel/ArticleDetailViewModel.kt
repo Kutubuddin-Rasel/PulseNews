@@ -5,12 +5,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
-import com.example.newsapp.data.util.AppTelemetry
+import com.example.newsapp.domain.util.AppTelemetry
 import com.example.newsapp.decodeNavUrl
 import com.example.newsapp.domain.model.CategoryKey
 import com.example.newsapp.domain.model.UiEvent
-import com.example.newsapp.domain.repository.NewsRepository
-import com.example.newsapp.domain.repository.SavedArticleRepository
+import com.example.newsapp.domain.usecase.news.ResolveArticleUseCase
+import com.example.newsapp.domain.usecase.news.SearchNewsUseCase
+import com.example.newsapp.domain.usecase.saved.CheckArticleSavedUseCase
+import com.example.newsapp.domain.usecase.saved.DeleteArticleUseCase
+import com.example.newsapp.domain.usecase.saved.SaveArticleUseCase
 import com.example.newsapp.module.Article
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -24,58 +27,70 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+data class ArticleDetailUiState(
+    val article: Article? = null,
+    val isSaved: Boolean = false,
+    val aiState: AiState = AiState.Idle,
+    val snackbarMessage: String? = null
+)
+
+sealed interface ArticleDetailEvent {
+    data class LogReadDeep(val durationSeconds: Long, val scrollDepthPercent: Int) : ArticleDetailEvent
+    data class LogRelatedClick(val relatedBackendId: String) : ArticleDetailEvent
+    data object ToggleSaved : ArticleDetailEvent
+    data object SaveOnly : ArticleDetailEvent
+    data object SnackbarConsumed : ArticleDetailEvent
+}
 
 @HiltViewModel
 class ArticleDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val newsRepository: NewsRepository,
-    private val savedArticleRepository: SavedArticleRepository,
+    private val resolveArticleUseCase: ResolveArticleUseCase,
+    private val checkArticleSavedUseCase: CheckArticleSavedUseCase,
+    private val searchNewsUseCase: SearchNewsUseCase,
+    private val deleteArticleUseCase: DeleteArticleUseCase,
+    private val saveArticleUseCase: SaveArticleUseCase,
     private val appTelemetry: AppTelemetry
 ) : ViewModel() {
-
-    private val _aiState = MutableStateFlow<AiState>(AiState.Idle)
-    val aiState: StateFlow<AiState> = _aiState
 
     private val encodedUrl: String = savedStateHandle.get<String>("url").orEmpty()
     val decodedUrl: String = decodeNavUrl(encodedUrl)
 
-    val article: StateFlow<Article?> = flow {
-        val fetched = savedArticleRepository.articleByUrl(decodedUrl)
-            ?: newsRepository.cachedArticleByUrl(decodedUrl)
-        emit(fetched)
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = null
-    )
+    private val _internalState = MutableStateFlow(ArticleDetailUiState())
+
+    val state: StateFlow<ArticleDetailUiState> = kotlinx.coroutines.flow.combine(
+        _internalState,
+        flow {
+            emit(resolveArticleUseCase(decodedUrl))
+        },
+        flow {
+            val initialSaved = checkArticleSavedUseCase(decodedUrl)
+            _isSavedMutable.value = initialSaved
+            _isSavedMutable.collect { if (it != null) emit(it) }
+        }
+    ) { internal, article, isSaved ->
+        internal.copy(
+            article = article,
+            isSaved = isSaved
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ArticleDetailUiState())
 
     private val _isSavedMutable = MutableStateFlow<Boolean?>(null)
-
-    val isSaved: StateFlow<Boolean> = flow {
-        val initialSaved = savedArticleRepository.isSaved(decodedUrl)
-        _isSavedMutable.value = initialSaved
-        _isSavedMutable.collect { if (it != null) emit(it) }
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = false
-    )
-
-    private val _events = MutableSharedFlow<UiEvent>()
-    val events: SharedFlow<UiEvent> = _events
 
     // Staff Engineer: Opposing Views / Filter Bubble Bursting
     // We dynamically extract keywords from the article title and trigger an 'everything' query
     // sorting by relevancy to fetch alternative perspectives from other publishers.
     @OptIn(ExperimentalCoroutinesApi::class)
-    val relatedPerspectives: kotlinx.coroutines.flow.Flow<PagingData<Article>> = article
+    val relatedPerspectives: kotlinx.coroutines.flow.Flow<PagingData<Article>> = state.map { it.article }
         .filterNotNull()
         .distinctUntilChangedBy { it.url }
         .flatMapLatest { currentArticle ->
             val keywords = extractCoreKeywords(currentArticle.title)
-            newsRepository.searchNews(query = keywords)
+            searchNewsUseCase(query = keywords)
         }.cachedIn(viewModelScope)
 
     companion object {
@@ -90,52 +105,62 @@ class ArticleDetailViewModel @Inject constructor(
         return significantWords.take(3).joinToString(" ").ifEmpty { "politics" } // fallback
     }
 
-    fun logInteraction(interactionType: String) {
-        article.value?.backendId?.let { id ->
-            appTelemetry.logInteraction(id, interactionType)
+    fun onEvent(event: ArticleDetailEvent) {
+        when (event) {
+            is ArticleDetailEvent.LogReadDeep -> logReadDeep(event.durationSeconds, event.scrollDepthPercent)
+            is ArticleDetailEvent.LogRelatedClick -> logRelatedClick(event.relatedBackendId)
+            is ArticleDetailEvent.ToggleSaved -> toggleSaved()
+            is ArticleDetailEvent.SaveOnly -> saveOnly()
+            is ArticleDetailEvent.SnackbarConsumed -> _internalState.value = _internalState.value.copy(snackbarMessage = null)
         }
     }
 
-    fun logRelatedInteraction(relatedBackendId: String, interactionType: String) {
-        appTelemetry.logInteraction(relatedBackendId, interactionType)
+    private fun logReadDeep(durationSeconds: Long, scrollDepthPercent: Int) {
+        state.value.article?.backendId?.let { id ->
+            appTelemetry.trackReadDeep(id, durationSeconds, scrollDepthPercent)
+        }
     }
 
-    fun toggleSaved() {
+    private fun logRelatedClick(relatedBackendId: String) {
+        appTelemetry.trackClick(relatedBackendId)
+    }
+
+    private fun toggleSaved() {
         if (_isSavedMutable.value == null) return
         viewModelScope.launch {
-            val item = article.value
+            val item = state.value.article
             if (item == null) {
-                _events.emit(UiEvent.Generic("Unable to resolve this article."))
+                _internalState.value = _internalState.value.copy(snackbarMessage = "Unable to resolve this article.")
                 return@launch
             }
 
             if (_isSavedMutable.value == true) {
-                savedArticleRepository.deleteArticle(item)
+                deleteArticleUseCase(item)
                 _isSavedMutable.value = false
-                _events.emit(UiEvent.Generic("Removed from saved"))
+                _internalState.value = _internalState.value.copy(snackbarMessage = "Removed from saved")
             } else {
-                savedArticleRepository.saveArticle(item)
+                saveArticleUseCase(item)
                 _isSavedMutable.value = true
-                _events.emit(UiEvent.Saved())
+                _internalState.value = _internalState.value.copy(snackbarMessage = "Article saved")
             }
         }
     }
 
-    fun saveOnly() {
+    private fun saveOnly() {
         if (_isSavedMutable.value == null) return
         viewModelScope.launch {
-            val item = article.value
+            val item = state.value.article
             if (item == null) {
-                _events.emit(UiEvent.Generic("Unable to resolve this article."))
+                _internalState.value = _internalState.value.copy(snackbarMessage = "Unable to resolve this article.")
                 return@launch
             }
 
             if (_isSavedMutable.value == true) {
-                _events.emit(UiEvent.AlreadySaved())
+                _internalState.value = _internalState.value.copy(snackbarMessage = "Already saved")
             } else {
-                savedArticleRepository.saveArticle(item)
+                saveArticleUseCase(item)
                 _isSavedMutable.value = true
-                _events.emit(UiEvent.Saved())
+                _internalState.value = _internalState.value.copy(snackbarMessage = "Article saved")
             }
         }
     }

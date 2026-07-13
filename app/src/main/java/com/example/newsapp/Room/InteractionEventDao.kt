@@ -15,4 +15,11 @@ interface InteractionEventDao {
 
     @Query("DELETE FROM interaction_events WHERE id IN (:ids)")
     suspend fun deleteEvents(ids: List<Long>)
+
+    /** Bounds local storage (audit A7): keep the newest [maxRows] events, drop older unsent ones. */
+    @Query(
+        "DELETE FROM interaction_events WHERE id NOT IN " +
+            "(SELECT id FROM interaction_events ORDER BY timestamp DESC LIMIT :maxRows)"
+    )
+    suspend fun trimToMostRecent(maxRows: Int)
 }

@@ -15,4 +15,10 @@ interface TtsEngine {
      * @return The local Uri of the generated audio file.
      */
     suspend fun synthesizeToUri(text: String, articleId: String): Uri
+
+    /**
+     * Releases any held system resources (e.g. the Android TextToSpeech binding). Safe to call
+     * multiple times; the engine re-initializes lazily on the next [synthesizeToUri].
+     */
+    fun release()
 }

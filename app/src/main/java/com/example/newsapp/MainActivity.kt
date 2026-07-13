@@ -10,7 +10,7 @@ import com.example.newsapp.Navigation.App
 import com.example.newsapp.ui.theme.NewsAppTheme
 import dagger.hilt.android.AndroidEntryPoint
 
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
@@ -21,7 +21,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import android.os.Build
 import com.example.newsapp.domain.util.SettingsManager
 import com.example.newsapp.domain.util.ThemePreference
-import com.example.newsapp.data.util.TelemetryManager
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -29,13 +28,7 @@ class MainActivity : ComponentActivity() {
     @javax.inject.Inject
     lateinit var settingsManager: SettingsManager
 
-    @javax.inject.Inject
-    lateinit var telemetryManager: TelemetryManager
 
-    override fun onPause() {
-        super.onPause()
-        telemetryManager.flush()
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,8 +40,8 @@ class MainActivity : ComponentActivity() {
         splashScreen.setKeepOnScreenCondition { keepSplashScreen }
 
         setContent {
-            val highContrastEnabled by settingsManager.highContrastEnabled.collectAsState(initial = null)
-            val themePreference by settingsManager.themePreference.collectAsState(initial = null)
+            val highContrastEnabled by settingsManager.highContrastEnabled.collectAsStateWithLifecycle(initialValue = null)
+            val themePreference by settingsManager.themePreference.collectAsStateWithLifecycle(initialValue = null)
             
             LaunchedEffect(highContrastEnabled, themePreference) {
                 if (highContrastEnabled != null && themePreference != null) {

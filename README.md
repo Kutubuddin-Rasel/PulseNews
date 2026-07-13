@@ -55,7 +55,7 @@ interface NewsApi {
 
 3. **Configure API Key:**  
    - Sign up for an API key at [NewsAPI](https://newsapi.org/).  
-   - Insert your API key in the project’s configuration file.
+   - Add `NEWS_API_KEY=your_key_here` to your local `~/.gradle/gradle.properties` or project `local.properties`.
 
 4. **Build and Run:**  
    Compile the project in Android Studio and run the app on an emulator or physical device.

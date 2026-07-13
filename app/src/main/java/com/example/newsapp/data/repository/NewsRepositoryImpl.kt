@@ -8,7 +8,7 @@ import com.example.newsapp.data.mapper.toCacheEntity
 import com.example.newsapp.data.mapper.toDomainArticle
 import com.example.newsapp.data.mapper.toDomainOrNull
 import com.example.newsapp.data.mapper.toDomain
-import com.example.newsapp.data.util.AppTelemetry
+import com.example.newsapp.domain.util.AppTelemetry
 import com.example.newsapp.domain.model.AppError
 import com.example.newsapp.domain.model.CategoryKey
 import com.example.newsapp.domain.model.EverythingQuery
@@ -30,18 +30,29 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import com.example.newsapp.domain.repository.FeedMetaRepository
+
 class NewsRepositoryImpl @Inject constructor(
     private val pulseBackendApi: PulseBackendApi,
     private val database: ArticleDatabase,
     private val connectivityMonitor: ConnectivityMonitor,
     private val clockProvider: ClockProvider,
     private val telemetry: AppTelemetry,
-    private val algorithmPreferencesRepository: AlgorithmPreferencesRepository
+    private val algorithmPreferencesRepository: AlgorithmPreferencesRepository,
+    private val feedMetaRepository: FeedMetaRepository,
+    private val searchResultCache: SearchResultCache
 ) : NewsRepository {
+
+    // Single source of truth for the categoryKey → cached-feed key mapping (used by the feed query
+    // and the F1 source-list scoping below).
+    private fun feedKeyFor(categoryKey: CategoryKey): String =
+        if (categoryKey == CategoryKey.FOR_YOU) "for_you" else categoryKey.value
 
     @OptIn(androidx.paging.ExperimentalPagingApi::class)
     override fun getFeed(categoryKey: CategoryKey, source: String?): Flow<androidx.paging.PagingData<Article>> {
-        val feedKey = if (categoryKey == CategoryKey.FOR_YOU) "for_you" else categoryKey.value
+        val feedKey = feedKeyFor(categoryKey)
 
         // Use RemoteMediator to handle graceful backend pagination and local cache appending for all feeds
         val useRemoteMediator = source.isNullOrBlank()
@@ -60,7 +71,8 @@ class NewsRepositoryImpl @Inject constructor(
                     connectivityMonitor = connectivityMonitor,
                     clockProvider = clockProvider,
                     telemetry = telemetry,
-                    algorithmPreferencesRepository = algorithmPreferencesRepository
+                    algorithmPreferencesRepository = algorithmPreferencesRepository,
+                    feedMetaRepository = feedMetaRepository
                 )
             } else null,
             pagingSourceFactory = {
@@ -82,51 +94,24 @@ class NewsRepositoryImpl @Inject constructor(
                 prefetchDistance = 5,
                 enablePlaceholders = false
             ),
-            pagingSourceFactory = { 
-                SearchPagingSource(pulseBackendApi, connectivityMonitor, database, query) 
+            pagingSourceFactory = {
+                SearchPagingSource(pulseBackendApi, connectivityMonitor, searchResultCache, query)
             }
         ).flow
     }
 
-    override fun getAvailableSources(): kotlinx.coroutines.flow.Flow<List<String>> {
-        return database.cachedFeedDao().getAvailableSources()
+    override fun getAvailableSources(categoryKey: CategoryKey): kotlinx.coroutines.flow.Flow<List<String>> {
+        return database.cachedFeedDao().getAvailableSources(feedKeyFor(categoryKey))
     }
 
-    override suspend fun cachedArticleByUrl(url: String): Article? {
-        return database.cachedFeedDao().findOneByUrl(url)?.toDomainArticle()
+    override suspend fun cachedArticleByUrl(url: String): Article? = withContext(Dispatchers.IO) {
+        return@withContext database.cachedFeedDao().findOneByUrl(url)?.toDomainArticle()
     }
 
 
-    override suspend fun getTrendingTopics(): Result<List<TrendingTopic>> {
-        if (!connectivityMonitor.isOnline()) {
-            return Result.failure(IOException("Offline"))
-        }
-        return try {
-            val response = pulseBackendApi.getTrendingTopics()
-            if (response.isSuccessful) {
-                val body = response.body() ?: emptyList()
-                Result.success(body.map { it.toDomain() })
-            } else {
-                Result.failure(retrofit2.HttpException(response))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    override suspend fun getNewsMeta(): Result<com.example.newsapp.data.remote.dto.PulseMetaDto> {
-        if (!connectivityMonitor.isOnline()) {
-            return Result.failure(IOException("Offline"))
-        }
-        return try {
-            val response = pulseBackendApi.getNewsMeta()
-            if (response.isSuccessful && response.body() != null) {
-                Result.success(response.body()!!)
-            } else {
-                Result.failure(retrofit2.HttpException(response))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
+    override fun getTrendingTopics(): Flow<List<TrendingTopic>> {
+        return database.trendingTopicDao().getTrendingTopics().map { entities ->
+            entities.map { TrendingTopic(tag = it.tag, count = it.count) }
         }
     }
 }

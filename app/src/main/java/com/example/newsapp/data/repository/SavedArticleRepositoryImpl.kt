@@ -4,6 +4,8 @@ import com.example.newsapp.Room.ArticleDao
 import com.example.newsapp.domain.repository.SavedArticleRepository
 import com.example.newsapp.module.Article
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import javax.inject.Inject
 
 import android.content.Context
@@ -16,7 +18,7 @@ import androidx.work.workDataOf
 import com.example.newsapp.Api.PulseBackendApi
 import com.example.newsapp.data.mapper.toDomainOrNull
 import com.example.newsapp.data.remote.dto.BookmarkRequest
-import com.example.newsapp.data.util.DeviceIdProvider
+import com.example.newsapp.domain.util.DeviceIdProvider
 import com.example.newsapp.data.worker.BookmarkSyncWorker
 import dagger.hilt.android.qualifiers.ApplicationContext
 
@@ -30,13 +32,14 @@ class SavedArticleRepositoryImpl @Inject constructor(
     
     override fun observeSavedArticles(): Flow<List<Article>> = articleDao.allArticle()
 
-    override suspend fun saveArticle(article: Article) {
+    override suspend fun saveArticle(article: Article) = withContext(Dispatchers.IO) {
         articleDao.upsertArticle(article)
         
         article.backendId?.let { id ->
             val data = workDataOf(
                 BookmarkSyncWorker.KEY_ARTICLE_ID to id,
-                BookmarkSyncWorker.KEY_ACTION to BookmarkSyncWorker.ACTION_ADD
+                BookmarkSyncWorker.KEY_ACTION to BookmarkSyncWorker.ACTION_ADD,
+                BookmarkSyncWorker.KEY_IDEMPOTENCY_KEY to java.util.UUID.randomUUID().toString()
             )
             try {
                 val request = OneTimeWorkRequestBuilder<BookmarkSyncWorker>()
@@ -53,9 +56,10 @@ class SavedArticleRepositoryImpl @Inject constructor(
                 // Ignore WorkManager initialization errors during testing
             }
         }
+        Unit
     }
 
-    override suspend fun deleteArticle(article: Article) {
+    override suspend fun deleteArticle(article: Article) = withContext(Dispatchers.IO) {
         articleDao.delete(article)
         
         article.backendId?.let { id ->
@@ -78,23 +82,32 @@ class SavedArticleRepositoryImpl @Inject constructor(
                 // Ignore WorkManager initialization errors during testing
             }
         }
+        Unit
     }
 
-    override suspend fun isSaved(url: String): Boolean = articleDao.isSaved(url)
+    override suspend fun isSaved(url: String): Boolean = withContext(Dispatchers.IO) { articleDao.isSaved(url) }
 
-    override suspend fun articleByUrl(url: String): Article? = articleDao.getByUrl(url)
+    override suspend fun articleByUrl(url: String): Article? = withContext(Dispatchers.IO) { articleDao.getByUrl(url) }
 
-    override suspend fun syncBookmarks() {
-        try {
-            val response = pulseBackendApi.getBookmarks(deviceIdProvider.deviceId)
-            if (response.isSuccessful) {
-                val backendArticles = response.body()?.mapNotNull { it.toDomainOrNull() } ?: emptyList()
-                if (backendArticles.isNotEmpty()) {
-                    articleDao.upsertAll(backendArticles)
+    override suspend fun syncBookmarks() = withContext(Dispatchers.IO) {
+        var cursor: String? = null
+        do {
+            try {
+                val response = pulseBackendApi.getBookmarks(deviceIdProvider.deviceId, limit = 50, cursor = cursor)
+                if (response.isSuccessful) {
+                    val body = response.body()
+                    val backendArticles = body?.items?.mapNotNull { it.toDomainOrNull() } ?: emptyList()
+                    if (backendArticles.isNotEmpty()) {
+                        articleDao.upsertAll(backendArticles)
+                    }
+                    cursor = body?.nextCursor
+                } else {
+                    break // Stop if we hit an API error
                 }
+            } catch (e: Exception) {
+                // Silently fail, rely on offline cache, break loop
+                break
             }
-        } catch (e: Exception) {
-            // Silently fail, rely on offline cache
-        }
+        } while (cursor != null)
     }
 }

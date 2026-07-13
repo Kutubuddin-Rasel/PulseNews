@@ -23,7 +23,7 @@ private fun String.fastStripHtml(): String {
         .replace("&gt;", ">")
 }
 
-private val statusMap = VerificationStatus.entries.associateBy { it.name }
+// private val statusMap = VerificationStatus.entries.associateBy { it.name } // Removed since we are using valueOf directly
 
 private fun String.cleanSeoSuffixes(): String {
     // Remove everything after the first ` | ` (e.g., "Title | Author | Publisher")
@@ -66,7 +66,7 @@ fun ArticleDto.toDomainOrNull(): Article? {
         urlToImage = urlToImage,
         provenance = provenance?.let {
             Provenance(
-                status = statusMap[it.status ?: "UNVERIFIED"] ?: VerificationStatus.UNVERIFIED,
+                status = runCatching { VerificationStatus.valueOf(it.status ?: "UNVERIFIED") }.getOrDefault(VerificationStatus.UNVERIFIED),
                 verificationMethod = it.verificationMethod,
                 trustedSigner = it.trustedSigner
             )
@@ -84,7 +84,7 @@ fun PulseArticleDto.toDomainOrNull(): Article? {
     return Article(
         url = cleanedUrl,
         backendId = id.orEmpty(),
-        author = null,
+        author = author,
         content = null,
         description = snippet?.trim().orEmpty().fastStripHtml(),
         publishedAt = pubDate.orEmpty(),
@@ -94,9 +94,10 @@ fun PulseArticleDto.toDomainOrNull(): Article? {
         ),
         title = cleanedTitle,
         urlToImage = urlToImage,
+        summary = summary?.trim()?.fastStripHtml()?.ifEmpty { null },
         provenance = provenance?.let {
             Provenance(
-                status = statusMap[it.status ?: "UNVERIFIED"] ?: VerificationStatus.UNVERIFIED,
+                status = runCatching { VerificationStatus.valueOf(it.status ?: "UNVERIFIED") }.getOrDefault(VerificationStatus.UNVERIFIED),
                 verificationMethod = it.verificationMethod,
                 trustedSigner = it.trustedSigner
             )
@@ -104,6 +105,8 @@ fun PulseArticleDto.toDomainOrNull(): Article? {
         regionCode = regionCode,
         sourceTier = sourceTier,
         gravity_score = gravity_score,
+        personalized_score = personalized_score,
+        distance = distance,
         taxonomy = taxonomy?.let {
             ArticleTaxonomy(
                 categories = it.categories ?: emptyList(),
@@ -129,6 +132,7 @@ fun Article.toCacheEntity(feedKey: String, sortOrder: Int, fetchedAt: Long): Cac
         sourceName = source.name,
         title = title,
         urlToImage = urlToImage,
+        summary = summary,
         sortOrder = sortOrder,
         fetchedAt = fetchedAt,
         verificationStatus = provenance?.status?.name ?: "UNVERIFIED",
@@ -141,7 +145,9 @@ fun Article.toCacheEntity(feedKey: String, sortOrder: Int, fetchedAt: Long): Cac
         taxonomyMlConfidence = taxonomy?.mlConfidence,
         taxonomyId = taxonomy?.id,
         taxonomyArticleId = taxonomy?.articleId,
-        gravity_score = gravity_score
+        gravity_score = gravity_score,
+        personalizedScore = personalized_score,
+        distance = distance
     )
 }
 
@@ -156,14 +162,17 @@ fun CachedFeedArticleEntity.toDomainArticle(): Article {
         source = Source(sourceId, sourceName),
         title = title,
         urlToImage = urlToImage,
+        summary = summary,
         provenance = Provenance(
-            status = statusMap[verificationStatus] ?: VerificationStatus.UNVERIFIED,
+            status = runCatching { VerificationStatus.valueOf(verificationStatus) }.getOrDefault(VerificationStatus.UNVERIFIED),
             verificationMethod = signatureProtocol,
             trustedSigner = trustedSigner
         ),
         regionCode = regionCode,
         sourceTier = sourceTier,
         gravity_score = gravity_score,
+        personalized_score = personalizedScore,
+        distance = distance,
         taxonomy = if (taxonomyCategories != null || taxonomyTags != null) {
             ArticleTaxonomy(
                 categories = taxonomyCategories ?: emptyList(),

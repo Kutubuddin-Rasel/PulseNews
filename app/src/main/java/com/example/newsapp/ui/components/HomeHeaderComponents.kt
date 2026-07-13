@@ -87,7 +87,7 @@ fun HomeHeader(
             modifier = Modifier.fillMaxWidth().padding(horizontal = NewsSpacing.lg)
                 .height(48.dp),
             color = MaterialTheme.colorScheme.surfaceContainerLowest,
-            shape = RoundedCornerShape(NewsRadius.md),
+            shape = MaterialTheme.shapes.medium,
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         ) {
             Row(
@@ -122,7 +122,6 @@ private fun Wordmark() {
         text,
         style = MaterialTheme.typography.headlineLarge,
         color = MaterialTheme.colorScheme.onBackground,
-        fontWeight = FontWeight.Medium,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
@@ -139,7 +138,7 @@ private fun SquareIconButton(
     Surface(
         onClick = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onClick() },
         modifier = Modifier.size(40.dp).semantics { contentDescription = description },
-        shape = RoundedCornerShape(NewsRadius.md),
+        shape = MaterialTheme.shapes.medium,
         color = if (primary) MaterialTheme.colorScheme.primary else Color.Transparent,
         border = if (primary) null else
             androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
@@ -249,7 +248,7 @@ fun CategoryChip(text: String, selected: Boolean, onClick: () -> Unit) {
 
     Surface(
         onClick = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onClick() },
-        shape = RoundedCornerShape(NewsRadius.pill),
+        shape = MaterialTheme.shapes.extraLarge,
         color = containerColor,
         border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
         modifier = Modifier.heightIn(min = 36.dp).semantics { contentDescription = text },
@@ -259,7 +258,6 @@ fun CategoryChip(text: String, selected: Boolean, onClick: () -> Unit) {
                 text,
                 style = MaterialTheme.typography.labelLarge,
                 color = textColor,
-                fontWeight = FontWeight.Medium,
                 maxLines = 1,
             )
         }
@@ -279,7 +277,6 @@ fun SourceFilterBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(topStart = NewsRadius.lg, topEnd = NewsRadius.lg),
     ) {
         Column(
             Modifier
