@@ -90,3 +90,12 @@ docs/
 
 # Testing
 /jacoco
+download_fonts.py
+download.sh
+.gitignore
+extract.py
+fix_notification_repo.py
+fix_other_repos.py
+fix_return_types.py
+Project_Analysis.md
+update_imports.py
