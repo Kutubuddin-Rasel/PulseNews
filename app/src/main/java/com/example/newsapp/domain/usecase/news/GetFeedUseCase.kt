@@ -10,7 +10,7 @@ import javax.inject.Inject
 class GetFeedUseCase @Inject constructor(
     private val newsRepository: NewsRepository
 ) {
-    operator fun invoke(categoryKey: CategoryKey, source: String? = null): Flow<PagingData<Article>> {
-        return newsRepository.getFeed(categoryKey, source)
+    operator fun invoke(categoryKey: CategoryKey, source: String? = null, forceRefresh: Boolean = false): Flow<PagingData<Article>> {
+        return newsRepository.getFeed(categoryKey, source, forceRefresh)
     }
 }

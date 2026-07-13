@@ -44,6 +44,10 @@ abstract class RepositoryModule {
 
     @Binds
     @Singleton
+    abstract fun bindReadingPreferencesRepository(impl: com.example.newsapp.data.repository.ReadingPreferencesRepositoryImpl): com.example.newsapp.domain.repository.ReadingPreferencesRepository
+
+    @Binds
+    @Singleton
     abstract fun bindNotificationPreferencesRepository(impl: com.example.newsapp.data.repository.NotificationPreferencesRepositoryImpl): com.example.newsapp.domain.repository.NotificationPreferencesRepository
 
     @Binds
@@ -61,4 +65,12 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindRecentSearchRepository(impl: com.example.newsapp.data.repository.RecentSearchRepositoryImpl): com.example.newsapp.domain.repository.RecentSearchRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindGeoLanguageRepository(impl: com.example.newsapp.data.repository.GeoLanguageRepositoryImpl): com.example.newsapp.domain.repository.GeoLanguageRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindUserPreferencesRemoteRepository(impl: com.example.newsapp.data.repository.UserPreferencesRemoteRepositoryImpl): com.example.newsapp.domain.repository.UserPreferencesRemoteRepository
 }

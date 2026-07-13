@@ -42,7 +42,8 @@ class NewsRepositoryImpl @Inject constructor(
     private val telemetry: AppTelemetry,
     private val algorithmPreferencesRepository: AlgorithmPreferencesRepository,
     private val feedMetaRepository: FeedMetaRepository,
-    private val searchResultCache: SearchResultCache
+    private val searchResultCache: SearchResultCache,
+    private val geoLanguageRepository: com.example.newsapp.domain.repository.GeoLanguageRepository
 ) : NewsRepository {
 
     // Single source of truth for the categoryKey → cached-feed key mapping (used by the feed query
@@ -51,7 +52,7 @@ class NewsRepositoryImpl @Inject constructor(
         if (categoryKey == CategoryKey.FOR_YOU) "for_you" else categoryKey.value
 
     @OptIn(androidx.paging.ExperimentalPagingApi::class)
-    override fun getFeed(categoryKey: CategoryKey, source: String?): Flow<androidx.paging.PagingData<Article>> {
+    override fun getFeed(categoryKey: CategoryKey, source: String?, forceRefresh: Boolean): Flow<androidx.paging.PagingData<Article>> {
         val feedKey = feedKeyFor(categoryKey)
 
         // Use RemoteMediator to handle graceful backend pagination and local cache appending for all feeds
@@ -72,7 +73,9 @@ class NewsRepositoryImpl @Inject constructor(
                     clockProvider = clockProvider,
                     telemetry = telemetry,
                     algorithmPreferencesRepository = algorithmPreferencesRepository,
-                    feedMetaRepository = feedMetaRepository
+                    feedMetaRepository = feedMetaRepository,
+                    geoLanguageRepository = geoLanguageRepository,
+                    forceRefresh = forceRefresh
                 )
             } else null,
             pagingSourceFactory = {
@@ -87,7 +90,7 @@ class NewsRepositoryImpl @Inject constructor(
         }
     }
 
-    override fun searchNews(query: String): Flow<androidx.paging.PagingData<Article>> {
+    override fun searchNews(query: String, excludeId: String?): Flow<androidx.paging.PagingData<Article>> {
         return androidx.paging.Pager(
             config = androidx.paging.PagingConfig(
                 pageSize = 20,
@@ -95,7 +98,7 @@ class NewsRepositoryImpl @Inject constructor(
                 enablePlaceholders = false
             ),
             pagingSourceFactory = {
-                SearchPagingSource(pulseBackendApi, connectivityMonitor, searchResultCache, query)
+                SearchPagingSource(pulseBackendApi, connectivityMonitor, searchResultCache, query, excludeId)
             }
         ).flow
     }

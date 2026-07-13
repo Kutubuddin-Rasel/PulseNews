@@ -13,7 +13,10 @@ class SearchPagingSource(
     private val api: PulseBackendApi,
     private val connectivityMonitor: ConnectivityMonitor,
     private val searchResultCache: SearchResultCache,
-    private val query: String
+    private val query: String,
+    // Related-Perspectives: the current article's backend id, excluded server-side
+    // so the story you're reading never appears among its own alternative views.
+    private val excludeId: String? = null
 ) : PagingSource<Int, Article>() {
 
     override fun getRefreshKey(state: PagingState<Int, Article>): Int? {
@@ -30,7 +33,7 @@ class SearchPagingSource(
 
         return try {
             val page = params.key ?: 1
-            val response = api.searchNews(query = query, page = page, limit = params.loadSize)
+            val response = api.searchNews(query = query, page = page, limit = params.loadSize, excludeId = excludeId)
 
             if (response.isSuccessful) {
                 val dtos = response.body() ?: emptyList()

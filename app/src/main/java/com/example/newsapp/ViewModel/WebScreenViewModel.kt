@@ -25,8 +25,18 @@ import kotlinx.coroutines.flow.stateIn
 
 import com.example.newsapp.domain.util.ConnectivityMonitor
 import com.example.newsapp.domain.util.OfflineHtmlCache
-import com.example.newsapp.domain.util.ParsedArticle
-import com.example.newsapp.domain.util.HtmlParser
+import com.example.newsapp.domain.util.reader.ArticleBlockMapper
+import com.example.newsapp.domain.util.reader.ReadabilityExtractor
+import com.example.newsapp.domain.util.reader.ReaderContent
+import com.example.newsapp.domain.util.reader.ReaderMode
+import com.example.newsapp.domain.util.reader.ReaderQuality
+import com.example.newsapp.domain.util.reader.initialModeFor
+import com.example.newsapp.domain.util.reader.toggled
+import com.example.newsapp.domain.reader.LineHeightOption
+import com.example.newsapp.domain.reader.ReaderTheme
+import com.example.newsapp.domain.reader.ReadingPreferences
+import com.example.newsapp.domain.reader.WidthOption
+import com.example.newsapp.domain.repository.ReadingPreferencesRepository
 import com.example.newsapp.domain.util.tts.TtsEngine
 import com.example.newsapp.domain.tracker.EngagementTracker
 import com.example.newsapp.domain.util.AiSummarizer
@@ -40,7 +50,7 @@ import kotlinx.coroutines.flow.flowOn
 
 sealed interface ReaderState {
     data object Loading : ReaderState
-    data class Success(val article: ParsedArticle) : ReaderState
+    data class Success(val content: ReaderContent) : ReaderState
     data class Error(val message: String) : ReaderState
 }
 
@@ -68,6 +78,9 @@ class WebScreenViewModel @Inject constructor(
     private val deleteArticleUseCase: DeleteArticleUseCase,
     private val connectivityMonitor: ConnectivityMonitor,
     private val offlineHtmlCache: OfflineHtmlCache,
+    private val readabilityExtractor: ReadabilityExtractor,
+    private val articleBlockMapper: ArticleBlockMapper,
+    private val readingPreferencesRepository: ReadingPreferencesRepository,
     private val aiSummarizer: AiSummarizer,
     private val localSummarizer: LocalSummarizer,
     private val ttsEngine: TtsEngine,
@@ -107,6 +120,24 @@ class WebScreenViewModel @Inject constructor(
     private val _isOnline = MutableStateFlow(true)
     val isOnline: StateFlow<Boolean> = _isOnline
 
+    // Reader/Web surface selection. Seeded by the quality gate as the extraction resolves
+    // (thin → Web, rich → Reader) and flipped by the user via toggleMode().
+    private val _mode = MutableStateFlow(ReaderMode.Reader)
+    val mode: StateFlow<ReaderMode> = _mode
+
+    fun toggleMode() { _mode.value = _mode.value.toggled() }
+
+    // Persisted reading-comfort controls, surfaced as hot state for the reader UI.
+    val readingPreferences: StateFlow<ReadingPreferences> = readingPreferencesRepository.preferences
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ReadingPreferences())
+
+    fun setFontScale(scale: Float) = viewModelScope.launch { readingPreferencesRepository.setFontScale(scale) }
+    fun setLineHeight(option: LineHeightOption) = viewModelScope.launch { readingPreferencesRepository.setLineHeight(option) }
+    fun setMeasureWidth(option: WidthOption) = viewModelScope.launch { readingPreferencesRepository.setMeasureWidth(option) }
+    fun setTheme(theme: ReaderTheme) = viewModelScope.launch { readingPreferencesRepository.setTheme(theme) }
+    fun setBionicEnabled(enabled: Boolean) = viewModelScope.launch { readingPreferencesRepository.setBionicEnabled(enabled) }
+    fun setFocusEnabled(enabled: Boolean) = viewModelScope.launch { readingPreferencesRepository.setFocusEnabled(enabled) }
+
     val readerState: StateFlow<ReaderState> = flow {
         emit(ReaderState.Loading)
         // W5: serve cache-first. Reader HTML per URL is effectively immutable, so a previously
@@ -128,7 +159,34 @@ class WebScreenViewModel @Inject constructor(
         }
 
         if (htmlToParse != null) {
-            emit(ReaderState.Success(HtmlParser.parse(htmlToParse)))
+            val extraction = readabilityExtractor.extract(htmlToParse, decodedUrl)
+            if (extraction == null) {
+                // Nothing usable to isolate — surface a content shell and pin to the WebView.
+                val content = ReaderContent.from(
+                    title = article.value?.title ?: "",
+                    heroImageUrl = article.value?.urlToImage,
+                    blocks = emptyList(),
+                    quality = ReaderQuality(0, 0),
+                    sourceUrl = decodedUrl,
+                )
+                _mode.value = ReaderMode.Web
+                emit(ReaderState.Success(content))
+            } else {
+                val blocks = articleBlockMapper.map(
+                    contentHtml = extraction.contentHtml,
+                    title = extraction.title ?: "",
+                    heroImageUrl = article.value?.urlToImage,
+                )
+                val content = ReaderContent.from(
+                    title = extraction.title?.takeIf { it.isNotBlank() } ?: (article.value?.title ?: ""),
+                    heroImageUrl = article.value?.urlToImage,
+                    blocks = blocks,
+                    quality = extraction.quality,
+                    sourceUrl = decodedUrl,
+                )
+                _mode.value = initialModeFor(extraction.quality.isThin())
+                emit(ReaderState.Success(content))
+            }
         } else {
             emit(ReaderState.Error("Failed to fetch article content."))
         }
@@ -184,7 +242,7 @@ class WebScreenViewModel @Inject constructor(
         _aiSummaryState.value = AiState.Loading
         viewModelScope.launch {
             // Take up to 1500 words to stay within safe token limits and maintain speed.
-            val fullText = state.article.blocks
+            val fullText = state.content.blocks
                 .filterIsInstance<ArticleBlock.Text>()
                 .joinToString("\n\n") { it.content }
             val truncatedText = fullText.split("\\s+".toRegex()).take(1500).joinToString(" ")
@@ -203,7 +261,7 @@ class WebScreenViewModel @Inject constructor(
                 is AiSummaryResult.RateLimitExceeded -> {
                     Log.w("WebScreenVM", "AI Summary RateLimited for $backendId. Extractive NLP fallback.")
                     val fallbackSummary = withContext(Dispatchers.Default) {
-                        localSummarizer.summarize(truncatedText, state.article.title)
+                        localSummarizer.summarize(truncatedText, state.content.title)
                     }
                     _aiSummaryState.value = AiState.SuccessFallback(fallbackSummary)
                 }
@@ -269,8 +327,8 @@ class WebScreenViewModel @Inject constructor(
             try {
                 // Combine title and all text blocks into one text block for TTS
                 val fullText = buildString {
-                    appendLine(currentState.article.title)
-                    currentState.article.blocks
+                    appendLine(currentState.content.title)
+                    currentState.content.blocks
                         .filterIsInstance<ArticleBlock.Text>()
                         .forEach { appendLine(it.content) }
                 }

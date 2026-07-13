@@ -10,8 +10,6 @@ import com.example.newsapp.Room.InteractionEventEntity
 import com.example.newsapp.data.remote.dto.TelemetryBatchRequest
 import com.example.newsapp.data.remote.dto.TelemetryEvent
 import com.example.newsapp.domain.util.DeviceIdProvider
-import com.google.gson.JsonObject
-import com.google.gson.JsonParser
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.io.IOException
@@ -77,16 +75,13 @@ class TelemetrySyncWorker @AssistedInject constructor(
         ).toString()
 
     private fun InteractionEventEntity.toTelemetryEvent(): TelemetryEvent {
-        val dataJson = if (!eventData.isNullOrBlank()) {
-            JsonParser.parseString(eventData).asJsonObject
-        } else {
-            JsonObject()
-        }
+        // `eventData` is already a serialized JSON object (written by AppTelemetryImpl); forward it
+        // verbatim via the @RawJson field so numeric values keep their integer form on the wire.
         return TelemetryEvent(
             type = interactionType,
             articleId = articleId,
             timestamp = Instant.ofEpochMilli(timestamp).toString(),
-            data = dataJson
+            data = eventData?.takeIf { it.isNotBlank() } ?: "{}"
         )
     }
 

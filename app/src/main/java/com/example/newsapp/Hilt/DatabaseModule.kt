@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.example.newsapp.Room.ArticleDatabase
 import com.example.newsapp.Room.ArticleDao
 import com.example.newsapp.Room.CachedFeedDao
+import com.example.newsapp.Room.DatabaseMigrations
 import com.example.newsapp.Room.InteractionEventDao
 import com.example.newsapp.Room.TrendingTopicDao
 import dagger.Module
@@ -27,7 +28,14 @@ class DatabaseModule {
     @Singleton
     fun provideRoom(@ApplicationContext context: Context): ArticleDatabase {
         return Room.databaseBuilder(context, ArticleDatabase::class.java, "ArticleDB")
-            .fallbackToDestructiveMigration(dropAllTables = true)
+            // O4: upgrades now run real migrations (DatabaseMigrations) instead of dropping the DB,
+            // so a schema bump preserves the user's saved articles / paging state. Every future
+            // version MUST add its Migration to DatabaseMigrations.ALL or the upgrade fails loudly.
+            .addMigrations(*DatabaseMigrations.ALL)
+            // Destructive fallback is retained ONLY for downgrades (a dev installing an older build
+            // over a newer DB) — there is no forward migration for that direction, and it only ever
+            // touches re-syncable dev data (saved articles re-hydrate via BookmarkSyncWorker).
+            .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
             .build()
     }
 
@@ -49,5 +57,10 @@ class DatabaseModule {
     @Provides
     fun provideTrendingTopicDao(database: ArticleDatabase): TrendingTopicDao {
         return database.trendingTopicDao()
+    }
+
+    @Provides
+    fun provideFeedRemoteKeyDao(database: ArticleDatabase): com.example.newsapp.Room.FeedRemoteKeyDao {
+        return database.feedRemoteKeyDao()
     }
 }

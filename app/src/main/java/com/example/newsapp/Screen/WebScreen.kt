@@ -1,61 +1,61 @@
 package com.example.newsapp.Screen
 
 import android.content.Intent
-import android.graphics.Bitmap
 import android.net.Uri
-import android.net.http.SslError
-import android.webkit.SslErrorHandler
-import android.webkit.WebResourceError
-import android.webkit.WebResourceRequest
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.newsapp.ViewModel.WebScreenViewModel
 import com.example.newsapp.domain.model.UiEvent
+import com.example.newsapp.domain.util.reader.ReaderMode
 import com.example.newsapp.ui.components.NewsBackground
 import com.example.newsapp.ui.components.ReaderErrorPanel
 import com.example.newsapp.ui.components.ReaderProgressStrip
 import com.example.newsapp.ui.components.ReaderTopBar
 import com.example.newsapp.ui.components.AudioPlaybackController
 import com.example.newsapp.ui.components.LocalPulseSnackbar
+import com.example.newsapp.ui.components.reader.ReaderWebView
+import com.example.newsapp.ui.components.reader.ReadingSettingsSheet
+import com.example.newsapp.ui.components.reader.buildBionicString
+import com.example.newsapp.ui.theme.readerColorsFor
 import com.example.newsapp.ui.tokens.NewsSpacing
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
@@ -63,8 +63,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.foundation.layout.size
-import androidx.compose.ui.Alignment
 import kotlinx.coroutines.launch
 
 @Composable
@@ -78,6 +76,9 @@ fun WebScreen(navController: NavController) {
     val readerState by viewModel.readerState.collectAsState()
     val aiSummaryState by viewModel.aiSummaryState.collectAsState()
     val audioState by viewModel.audioState.collectAsState()
+    val mode by viewModel.mode.collectAsState()
+    val prefs by viewModel.readingPreferences.collectAsState()
+    var showSettings by remember { mutableStateOf(false) }
 
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
@@ -107,12 +108,34 @@ fun WebScreen(navController: NavController) {
 
         val listState = androidx.compose.foundation.lazy.rememberLazyListState()
         val isHeaderVisible by remember {
-            androidx.compose.runtime.derivedStateOf {
+            derivedStateOf {
                 listState.firstVisibleItemIndex == 0
             }
         }
 
         var maxScrollPercent by remember { mutableIntStateOf(0) }
+        var webLoadFailed by remember { mutableStateOf(false) }
+
+        // Live reading progress (fraction of items scrolled past) drives the strip + read-time chip.
+        val progress by remember {
+            derivedStateOf {
+                val li = listState.layoutInfo
+                val total = li.totalItemsCount
+                if (total == 0) 0f else ((li.visibleItemsInfo.lastOrNull()?.index ?: 0) + 1f) / total
+            }
+        }
+        // Focus mode: the visible item whose center is closest to the viewport center is "active";
+        // every other block is dimmed. Absolute list index (header is 0, block[i] is i+1).
+        val activeIndex by remember {
+            derivedStateOf {
+                val li = listState.layoutInfo
+                if (li.visibleItemsInfo.isEmpty()) -1
+                else {
+                    val center = (li.viewportStartOffset + li.viewportEndOffset) / 2
+                    li.visibleItemsInfo.minByOrNull { kotlin.math.abs((it.offset + it.size / 2) - center) }!!.index
+                }
+            }
+        }
 
         DisposableEffect(Unit) {
             onDispose {
@@ -151,7 +174,10 @@ fun WebScreen(navController: NavController) {
                     ReaderTopBar(
                         sourceLabel = article?.source?.name ?: "Reader",
                         isSaved = isSaved,
+                        readerMode = mode,
                         onBack = { navController.popBackStack() },
+                        onOpenSettings = { showSettings = true },
+                        onToggleMode = viewModel::toggleMode,
                         onToggleSave = viewModel::toggleSaved,
                         onShare = {
                             try {
@@ -175,7 +201,10 @@ fun WebScreen(navController: NavController) {
                 }
             },
             floatingActionButton = {
-                if (readerState is com.example.newsapp.ViewModel.ReaderState.Success && audioState !is com.example.newsapp.ViewModel.AudioState.Ready) {
+                // Audio narration is a Reader-mode affordance (it reads the extracted blocks).
+                if (mode == ReaderMode.Reader &&
+                    readerState is com.example.newsapp.ViewModel.ReaderState.Success &&
+                    audioState !is com.example.newsapp.ViewModel.AudioState.Ready) {
                     FloatingActionButton(
                         onClick = { viewModel.startAudioNarration() },
                         containerColor = MaterialTheme.colorScheme.tertiaryContainer,
@@ -196,7 +225,7 @@ fun WebScreen(navController: NavController) {
             bottomBar = {
                 if (audioState is com.example.newsapp.ViewModel.AudioState.Ready) {
                     val uri = (audioState as com.example.newsapp.ViewModel.AudioState.Ready).uri
-                    val title = (readerState as? com.example.newsapp.ViewModel.ReaderState.Success)?.article?.title ?: "Article"
+                    val title = (readerState as? com.example.newsapp.ViewModel.ReaderState.Success)?.content?.title ?: "Article"
                     AudioPlaybackController(
                         uri = uri,
                         title = title,
@@ -230,125 +259,194 @@ fun WebScreen(navController: NavController) {
                         )
                     }
                     is com.example.newsapp.ViewModel.ReaderState.Success -> {
-                        ReaderProgressStrip(progress = 0f, isLoading = false)
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = NewsSpacing.lg),
-                            contentPadding = PaddingValues(bottom = 88.dp)
-                        ) {
-                            item {
-                                if (state.article.heroImageUrl != null) {
-                                coil.compose.AsyncImage(
-                                        model = state.article.heroImageUrl,
-                                        contentDescription = "${state.article.title} hero image",
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(220.dp)
-                                            .clip(MaterialTheme.shapes.large),
-                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        val rc = readerColorsFor(prefs.theme)
+                        when (mode) {
+                            ReaderMode.Web -> {
+                                if (webLoadFailed) {
+                                    ReaderErrorPanel(
+                                        message = "This page couldn't be loaded.",
+                                        onRetry = { webLoadFailed = false },
+                                        onOpenExternal = {
+                                            try {
+                                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(safeUrl)))
+                                            } catch (e: Exception) {
+                                                scope.launch { snackbar.showSnackbar("Unable to open browser") }
+                                            }
+                                        }
                                     )
-                                    Spacer(modifier = Modifier.height(NewsSpacing.md))
+                                } else {
+                                    ReaderWebView(
+                                        url = safeUrl,
+                                        onError = { webLoadFailed = true },
+                                        modifier = Modifier.fillMaxSize()
+                                    )
                                 }
-                                Text(
-                                    text = state.article.title,
-                                    style = MaterialTheme.typography.headlineLarge,
-                                    color = MaterialTheme.colorScheme.onBackground
-                                )
-                                Spacer(modifier = Modifier.height(NewsSpacing.lg))
-                                com.example.newsapp.ui.components.AiSummaryCard(
-                                    aiState = aiSummaryState,
-                                    onSummarizeClick = { viewModel.requestSummary() }
-                                )
-                                Spacer(modifier = Modifier.height(NewsSpacing.lg))
                             }
-                            // LST1: key on the (immutable, never-reordered) block index and tag each
-                            // block by type so the lazy list recycles compositions only among
-                            // like-typed blocks (Text↔Text, Image↔Image) instead of rebuilding.
-                            itemsIndexed(
-                                items = state.article.blocks,
-                                key = { index, _ -> index },
-                                contentType = { _, block ->
-                                    when (block) {
-                                        is com.example.newsapp.domain.util.ArticleBlock.Text -> "text"
-                                        is com.example.newsapp.domain.util.ArticleBlock.Image -> "image"
-                                        is com.example.newsapp.domain.util.ArticleBlock.Video -> "video"
-                                    }
-                                }
-                            ) { _, block ->
-                                when (block) {
-                                    is com.example.newsapp.domain.util.ArticleBlock.Text -> {
-                                        val style = when (block.type) {
-                                            com.example.newsapp.domain.util.TextType.H1 -> MaterialTheme.typography.headlineMedium
-                                            com.example.newsapp.domain.util.TextType.H2 -> MaterialTheme.typography.titleLarge
-                                            com.example.newsapp.domain.util.TextType.H3 -> MaterialTheme.typography.titleMedium
-                                            com.example.newsapp.domain.util.TextType.PARAGRAPH -> MaterialTheme.typography.bodyLarge
-                                        }
-                                        val color = when (block.type) {
-                                            com.example.newsapp.domain.util.TextType.PARAGRAPH -> MaterialTheme.colorScheme.onSurfaceVariant
-                                            else -> MaterialTheme.colorScheme.onBackground
-                                        }
-                                        Text(
-                                            text = block.content,
-                                            style = style,
-                                            color = color
-                                        )
-                                        Spacer(modifier = Modifier.height(NewsSpacing.md))
-                                    }
-                                    is com.example.newsapp.domain.util.ArticleBlock.Image -> {
-                                        coil.compose.AsyncImage(
-                                            model = block.url,
-                                            contentDescription = block.caption,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clip(MaterialTheme.shapes.medium),
-                                            contentScale = androidx.compose.ui.layout.ContentScale.FillWidth
-                                        )
-                                        if (block.caption != null) {
+                            ReaderMode.Reader -> {
+                                ReaderProgressStrip(progress = progress, isLoading = false)
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(rc.background),
+                                    contentAlignment = Alignment.TopCenter
+                                ) {
+                                    LazyColumn(
+                                        state = listState,
+                                        modifier = Modifier
+                                            .fillMaxHeight()
+                                            .widthIn(max = prefs.measureWidth.maxContentWidthDp.dp)
+                                            .fillMaxWidth()
+                                            .padding(horizontal = NewsSpacing.lg),
+                                        contentPadding = PaddingValues(bottom = 88.dp)
+                                    ) {
+                                        item {
+                                            if (state.content.heroImageUrl != null) {
+                                                coil.compose.AsyncImage(
+                                                    model = state.content.heroImageUrl,
+                                                    contentDescription = "${state.content.title} hero image",
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(220.dp)
+                                                        .clip(MaterialTheme.shapes.large),
+                                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                                )
+                                                Spacer(modifier = Modifier.height(NewsSpacing.md))
+                                            }
+                                            Text(
+                                                text = state.content.title,
+                                                style = MaterialTheme.typography.headlineLarge,
+                                                color = rc.text
+                                            )
                                             Spacer(modifier = Modifier.height(NewsSpacing.xs))
                                             Text(
-                                                text = block.caption,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                text = "${state.content.estReadMinutes} min read · ${state.content.minutesLeft(progress)} min left",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = rc.secondaryText
                                             )
+                                            Spacer(modifier = Modifier.height(NewsSpacing.lg))
+                                            com.example.newsapp.ui.components.AiSummaryCard(
+                                                aiState = aiSummaryState,
+                                                onSummarizeClick = { viewModel.requestSummary() }
+                                            )
+                                            Spacer(modifier = Modifier.height(NewsSpacing.lg))
                                         }
-                                        Spacer(modifier = Modifier.height(NewsSpacing.lg))
-                                    }
-                                    is com.example.newsapp.domain.util.ArticleBlock.Video -> {
-                                        // A simple placeholder for video support. In a production app,
-                                        // this would use ExoPlayer or an isolated WebView iframe.
-                                        androidx.compose.material3.Surface(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(200.dp),
-                                            color = MaterialTheme.colorScheme.surfaceVariant,
-                                            shape = MaterialTheme.shapes.medium
-                                        ) {
-                                            Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
-                                                Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
-                                                    Icon(
-                                                        Icons.Default.PlayArrow,
-                                                        contentDescription = "Play Video",
-                                                        modifier = Modifier.size(48.dp),
-                                                        tint = MaterialTheme.colorScheme.primary
+                                        // LST1: key on the (immutable, never-reordered) block index and tag
+                                        // each block by type so the lazy list recycles compositions only
+                                        // among like-typed blocks (Text↔Text, Image↔Image).
+                                        itemsIndexed(
+                                            items = state.content.blocks,
+                                            key = { index, _ -> index },
+                                            contentType = { _, block ->
+                                                when (block) {
+                                                    is com.example.newsapp.domain.util.ArticleBlock.Text -> "text"
+                                                    is com.example.newsapp.domain.util.ArticleBlock.Image -> "image"
+                                                    is com.example.newsapp.domain.util.ArticleBlock.Video -> "video"
+                                                }
+                                            }
+                                        ) { index, block ->
+                                            val dim = prefs.focusEnabled && (index + 1) != activeIndex
+                                            val blockAlpha = if (dim) 0.4f else 1f
+                                            when (block) {
+                                                is com.example.newsapp.domain.util.ArticleBlock.Text -> {
+                                                    val base = when (block.type) {
+                                                        com.example.newsapp.domain.util.TextType.H1 -> MaterialTheme.typography.headlineMedium
+                                                        com.example.newsapp.domain.util.TextType.H2 -> MaterialTheme.typography.titleLarge
+                                                        com.example.newsapp.domain.util.TextType.H3 -> MaterialTheme.typography.titleMedium
+                                                        com.example.newsapp.domain.util.TextType.PARAGRAPH -> MaterialTheme.typography.bodyLarge
+                                                    }
+                                                    val style = base.copy(
+                                                        fontSize = base.fontSize * prefs.fontScale,
+                                                        lineHeight = base.fontSize * prefs.fontScale * prefs.lineHeight.multiplier,
+                                                        color = if (block.type == com.example.newsapp.domain.util.TextType.PARAGRAPH) rc.secondaryText else rc.text
                                                     )
-                                                    Spacer(modifier = Modifier.height(8.dp))
-                                                    Text("${block.platform} Video", style = MaterialTheme.typography.labelLarge)
+                                                    if (prefs.bionicEnabled && block.type == com.example.newsapp.domain.util.TextType.PARAGRAPH) {
+                                                        Text(
+                                                            text = buildBionicString(block.content),
+                                                            style = style,
+                                                            modifier = Modifier.alpha(blockAlpha)
+                                                        )
+                                                    } else {
+                                                        Text(
+                                                            text = block.content,
+                                                            style = style,
+                                                            modifier = Modifier.alpha(blockAlpha)
+                                                        )
+                                                    }
+                                                    Spacer(modifier = Modifier.height(NewsSpacing.md))
+                                                }
+                                                is com.example.newsapp.domain.util.ArticleBlock.Image -> {
+                                                    coil.compose.AsyncImage(
+                                                        model = block.url,
+                                                        contentDescription = block.caption,
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .aspectRatio(16f / 9f)
+                                                            .clip(MaterialTheme.shapes.medium)
+                                                            .alpha(blockAlpha),
+                                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                                    )
+                                                    if (block.caption != null) {
+                                                        Spacer(modifier = Modifier.height(NewsSpacing.xs))
+                                                        Text(
+                                                            text = block.caption,
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = rc.secondaryText,
+                                                            modifier = Modifier.alpha(blockAlpha)
+                                                        )
+                                                    }
+                                                    Spacer(modifier = Modifier.height(NewsSpacing.lg))
+                                                }
+                                                is com.example.newsapp.domain.util.ArticleBlock.Video -> {
+                                                    // A simple placeholder for video support. In a production app,
+                                                    // this would use ExoPlayer or an isolated WebView iframe.
+                                                    androidx.compose.material3.Surface(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .height(200.dp)
+                                                            .alpha(blockAlpha),
+                                                        color = MaterialTheme.colorScheme.surfaceVariant,
+                                                        shape = MaterialTheme.shapes.medium
+                                                    ) {
+                                                        Box(contentAlignment = Alignment.Center) {
+                                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                                Icon(
+                                                                    Icons.Default.PlayArrow,
+                                                                    contentDescription = "Play Video",
+                                                                    modifier = Modifier.size(48.dp),
+                                                                    tint = MaterialTheme.colorScheme.primary
+                                                                )
+                                                                Spacer(modifier = Modifier.height(8.dp))
+                                                                Text("${block.platform} Video", style = MaterialTheme.typography.labelLarge)
+                                                            }
+                                                        }
+                                                    }
+                                                    Spacer(modifier = Modifier.height(NewsSpacing.lg))
                                                 }
                                             }
                                         }
-                                        Spacer(modifier = Modifier.height(NewsSpacing.lg))
+                                        item {
+                                            Spacer(modifier = Modifier.height(NewsSpacing.lg))
+                                        }
                                     }
                                 }
-                            }
-                            item {
-                                Spacer(modifier = Modifier.height(NewsSpacing.lg))
                             }
                         }
                     }
                 }
             }
+        }
+
+        if (showSettings) {
+            ReadingSettingsSheet(
+                prefs = prefs,
+                onFontScale = viewModel::setFontScale,
+                onLineHeight = viewModel::setLineHeight,
+                onWidth = viewModel::setMeasureWidth,
+                onTheme = viewModel::setTheme,
+                onBionic = viewModel::setBionicEnabled,
+                onFocus = viewModel::setFocusEnabled,
+                onDismiss = { showSettings = false }
+            )
         }
     }
 }

@@ -90,7 +90,9 @@ class ArticleDetailViewModel @Inject constructor(
         .distinctUntilChangedBy { it.url }
         .flatMapLatest { currentArticle ->
             val keywords = extractCoreKeywords(currentArticle.title)
-            searchNewsUseCase(query = keywords)
+            // Exclude the current story so it never appears among its own
+            // alternative perspectives (server-side excludeId + title dedup).
+            searchNewsUseCase(query = keywords, excludeId = currentArticle.backendId)
         }.cachedIn(viewModelScope)
 
     companion object {

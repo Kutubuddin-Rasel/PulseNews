@@ -6,10 +6,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.OpenInBrowser
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.outlined.BookmarkBorder
+import com.example.newsapp.domain.util.reader.ReaderMode
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,6 +36,10 @@ fun ReaderTopBar(
     onToggleSave: () -> Unit,
     onShare: () -> Unit,
     onOpenExternal: () -> Unit,
+    // Reader-only affordances; omitted (null) by other callers (e.g. ArticleDetailScreen).
+    readerMode: ReaderMode? = null,
+    onOpenSettings: (() -> Unit)? = null,
+    onToggleMode: (() -> Unit)? = null,
 ) {
     Column {
         TopAppBar(
@@ -48,6 +56,22 @@ fun ReaderTopBar(
                 }
             },
             actions = {
+                if (onOpenSettings != null) {
+                    ReaderActionButton("Reading settings", onOpenSettings) {
+                        Icon(Icons.Filled.TextFields, contentDescription = null)
+                    }
+                }
+                if (onToggleMode != null && readerMode != null) {
+                    ReaderActionButton(
+                        if (readerMode == ReaderMode.Reader) "View original web page" else "View reader mode",
+                        onToggleMode,
+                    ) {
+                        Icon(
+                            if (readerMode == ReaderMode.Reader) Icons.Filled.Public else Icons.AutoMirrored.Filled.Article,
+                            contentDescription = null,
+                        )
+                    }
+                }
                 ReaderActionButton(if (isSaved) "Remove from saved" else "Save article", onToggleSave) {
                     Icon(
                         imageVector = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,

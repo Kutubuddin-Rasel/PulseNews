@@ -4,11 +4,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.newsapp.Hilt.ApplicationScope
 import com.example.newsapp.domain.repository.AlgorithmPreferencesRepository
+import com.example.newsapp.domain.repository.GeoLanguageRepository
+import com.example.newsapp.domain.usecase.geo.SyncGeoPreferencesUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import java.util.ArrayDeque
@@ -36,16 +41,43 @@ sealed interface AlgorithmPreferencesEvent {
     ) : AlgorithmPreferencesEvent
     data object SaveAndRecalculate : AlgorithmPreferencesEvent
     data object ErrorShown : AlgorithmPreferencesEvent
+    data class SetRegion(val code: String) : AlgorithmPreferencesEvent
+    data class SetLanguages(val langs: List<String>) : AlgorithmPreferencesEvent
+    data object ResetGeo : AlgorithmPreferencesEvent
 }
+
+/** Region & language affinity surface for the settings screen. */
+data class GeoUiState(
+    val homeRegion: String? = null,
+    val isManualOverride: Boolean = false,
+    val readableLanguages: List<String> = emptyList(),
+    val languagesIsManualOverride: Boolean = false
+)
 
 @HiltViewModel
 class AlgorithmPreferencesViewModel @Inject constructor(
     private val repository: AlgorithmPreferencesRepository,
-    @ApplicationScope private val appScope: CoroutineScope
+    @ApplicationScope private val appScope: CoroutineScope,
+    private val geoLanguageRepository: GeoLanguageRepository,
+    private val syncGeoPreferencesUseCase: SyncGeoPreferencesUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<AlgorithmWeightsUiState>(AlgorithmWeightsUiState.Loading)
     val uiState: StateFlow<AlgorithmWeightsUiState> = _uiState
+
+    // The home region drives the soft geo boost in the backend ranker. It is read-through from the
+    // shared GeoLanguageRepository, so changing it here invalidates the Home feed (see HomeViewModel
+    // geoToken) without this screen knowing about Paging.
+    val geoState: StateFlow<GeoUiState> = geoLanguageRepository.state
+        .map {
+            GeoUiState(
+                homeRegion = it.homeRegion,
+                isManualOverride = it.regionIsManualOverride,
+                readableLanguages = it.readableLanguages,
+                languagesIsManualOverride = it.languagesIsManualOverride
+            )
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), GeoUiState())
 
     init {
         viewModelScope.launch {
@@ -85,6 +117,30 @@ class AlgorithmPreferencesViewModel @Inject constructor(
                     _uiState.value = currentState.copy(errorMessage = null)
                 }
             }
+            is AlgorithmPreferencesEvent.SetRegion -> setRegion(event.code)
+            is AlgorithmPreferencesEvent.SetLanguages -> setLanguages(event.langs)
+            is AlgorithmPreferencesEvent.ResetGeo -> resetGeo()
+        }
+    }
+
+    private fun setRegion(code: String) {
+        viewModelScope.launch {
+            geoLanguageRepository.setManualRegion(code)
+        }
+    }
+
+    private fun setLanguages(langs: List<String>) {
+        viewModelScope.launch {
+            geoLanguageRepository.setManualLanguages(langs)
+        }
+    }
+
+    private fun resetGeo() {
+        viewModelScope.launch {
+            // Clear the override, then re-run launch detection (which also re-persists for signed-in
+            // users). The query param carries the new region on the next feed refresh.
+            geoLanguageRepository.resetToAuto()
+            syncGeoPreferencesUseCase()
         }
     }
 

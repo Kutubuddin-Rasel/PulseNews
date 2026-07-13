@@ -11,8 +11,8 @@ import kotlinx.coroutines.flow.Flow
 import com.example.newsapp.data.remote.dto.PulseMetaDto
 
 interface NewsRepository {
-    fun getFeed(categoryKey: CategoryKey, source: String? = null): Flow<PagingData<Article>>
-    fun searchNews(query: String): Flow<PagingData<Article>>
+    fun getFeed(categoryKey: CategoryKey, source: String? = null, forceRefresh: Boolean = false): Flow<PagingData<Article>>
+    fun searchNews(query: String, excludeId: String? = null): Flow<PagingData<Article>>
     fun getAvailableSources(categoryKey: CategoryKey): Flow<List<String>>
     suspend fun cachedArticleByUrl(url: String): Article?
     fun getTrendingTopics(): Flow<List<TrendingTopic>>

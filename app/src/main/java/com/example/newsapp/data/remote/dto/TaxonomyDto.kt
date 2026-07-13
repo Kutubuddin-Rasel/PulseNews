@@ -1,13 +1,13 @@
 package com.example.newsapp.data.remote.dto
 
-import androidx.annotation.Keep
-import com.google.gson.annotations.SerializedName
+import com.squareup.moshi.Json
+import com.squareup.moshi.JsonClass
 
-@Keep
+@JsonClass(generateAdapter = true)
 data class TaxonomyDto(
-    @SerializedName("version")
+    @Json(name = "version")
     val version: String,
-    
-    @SerializedName("categories")
+
+    @Json(name = "categories")
     val categories: Map<String, List<String>>
 )

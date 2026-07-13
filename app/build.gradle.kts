@@ -54,7 +54,11 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // O1: R8 code shrinking/obfuscation + resource shrinking. De-risked by the Gson→Moshi
+            // migration (O5) — codegen adapters replace reflective field lookups — plus the
+            // app-specific keep rules in proguard-rules.pro.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -78,6 +82,20 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+    // O4: expose the exported Room schema JSONs (room.schemaLocation, below) to instrumented
+    // tests so MigrationTestHelper can build a database at any historical version and assert a
+    // Migration reaches the next one. Asset dir, not a resource, because the helper loads them
+    // off the instrumentation context's assets at runtime.
+    sourceSets {
+        getByName("androidTest").assets.srcDirs(files("$projectDir/schemas"))
+    }
+}
+
+// O4: Room writes a versioned schema JSON here on every build (one file per @Database version).
+// These are committed to VCS — they are the source of truth a Migration is validated against.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 tasks.register("enforcePermissionBaseline") {
@@ -135,8 +153,10 @@ dependencies {
     implementation(libs.kotlinx.collections.immutable)
 
     implementation(libs.squareup.retrofit)
-    implementation(libs.squareup.retrofit.converter.gson)
+    implementation(libs.squareup.retrofit.converter.moshi)
     implementation(libs.squareup.okhttp)
+    implementation(libs.squareup.moshi)
+    ksp(libs.squareup.moshi.kotlin.codegen)
 
     implementation(libs.google.dagger.hilt.android)
     ksp(libs.google.dagger.hilt.compiler)
@@ -169,6 +189,7 @@ dependencies {
     implementation(libs.googleid)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.jsoup)
+    implementation(libs.readability4j)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.session)
 
@@ -180,6 +201,7 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.ui.test.junit4)
+    androidTestImplementation(libs.androidx.room.testing) // O4: MigrationTestHelper
 
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)

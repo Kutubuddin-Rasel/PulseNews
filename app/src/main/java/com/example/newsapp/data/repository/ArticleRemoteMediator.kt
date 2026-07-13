@@ -16,6 +16,7 @@ import com.example.newsapp.domain.util.ClockProvider
 import com.example.newsapp.domain.util.ConnectivityMonitor
 import com.example.newsapp.domain.repository.AlgorithmPreferencesRepository
 import com.example.newsapp.domain.repository.FeedMetaRepository
+import com.example.newsapp.domain.repository.GeoLanguageRepository
 import kotlinx.coroutines.flow.first
 import retrofit2.HttpException
 import java.io.IOException
@@ -29,7 +30,12 @@ class ArticleRemoteMediator(
     private val clockProvider: ClockProvider,
     private val telemetry: AppTelemetry,
     private val algorithmPreferencesRepository: AlgorithmPreferencesRepository,
-    private val feedMetaRepository: FeedMetaRepository
+    private val feedMetaRepository: FeedMetaRepository,
+    private val geoLanguageRepository: GeoLanguageRepository,
+    // Phase 3: when the user changes their region, the feed must re-fetch page 1 with the new
+    // region param even if the cache is still "fresh". A region-driven Pager rebuild sets this so
+    // initialize() forces a refresh; the normal launch path leaves it false and honours the TTL.
+    private val forceRefresh: Boolean = false
 ) : RemoteMediator<Int, CachedFeedArticleEntity>() {
 
     private val cacheFreshnessMs = 15 * 60 * 1000L
@@ -40,9 +46,13 @@ class ArticleRemoteMediator(
     private val metaFreshnessMs = 60 * 60 * 1000L
 
     override suspend fun initialize(): InitializeAction {
+        // A region change bypasses the freshness window: load(REFRESH) clears the feed and
+        // re-fetches page 1 with the new region param.
+        if (forceRefresh) return InitializeAction.LAUNCH_INITIAL_REFRESH
+
         val latestFetchTime = database.cachedFeedDao().latestFetchTime(feedKey)
         val cacheAgeMs = latestFetchTime?.let { clockProvider.nowMillis() - it }
-        
+
         return if (cacheAgeMs != null && cacheAgeMs <= cacheFreshnessMs) {
             telemetry.info("RemoteMediator", "Cache is fresh for $feedKey. Age: $cacheAgeMs ms")
             InitializeAction.SKIP_INITIAL_REFRESH
@@ -61,24 +71,38 @@ class ArticleRemoteMediator(
         }
 
         return try {
+            // Keyset pagination: every feed except for_you seeks the composite-scored backend by an
+            // opaque cursor instead of an OFFSET page. for_you stays page-based (its bandit/vector
+            // rerank is page-addressed, and meta.totalPages bounds it).
+            val isCursorFeed = feedKey != "for_you"
+            // The cursor sent on APPEND for a cursor feed (stays null on REFRESH → backend page 1).
+            var appendCursor: String? = null
+
             val page: Int = when (loadType) {
                 LoadType.REFRESH -> 1
                 LoadType.PREPEND -> return MediatorResult.Success(endOfPaginationReached = true)
                 LoadType.APPEND -> {
-                    // O3: the next page is authoritative state persisted by the previous load,
-                    // not a value re-derived from the last cached row's sortOrder. A null nextPage
-                    // (or a missing key row — REFRESH always writes one in normal flow) means we've
-                    // reached the end of this feed.
+                    // O3: the next-page key is authoritative state persisted by the previous load,
+                    // not a value re-derived from the last cached row's sortOrder.
                     val remoteKey = database.feedRemoteKeyDao().remoteKey(feedKey)
-                    val nextPage = remoteKey?.nextPage
-                        ?: return MediatorResult.Success(endOfPaginationReached = true)
-
-                    // Respect the global page ceiling when the meta endpoint has reported it.
-                    val meta = feedMetaRepository.meta.first()
-                    if (meta != null && nextPage > meta.totalPages) {
-                        return MediatorResult.Success(endOfPaginationReached = true)
+                    if (isCursorFeed) {
+                        // firehose/category: the opaque cursor drives the seek. A missing/null
+                        // cursor means the end of this feed. nextPage is reused purely as a local
+                        // ordinal for sortOrder (persisted so it survives mediator recreation); it
+                        // is NOT sent on the wire.
+                        appendCursor = remoteKey?.nextCursor
+                            ?: return MediatorResult.Success(endOfPaginationReached = true)
+                        remoteKey?.nextPage ?: 1
+                    } else {
+                        // for_you: classic page-based paging, bounded by the reported page ceiling.
+                        val nextPage = remoteKey?.nextPage
+                            ?: return MediatorResult.Success(endOfPaginationReached = true)
+                        val meta = feedMetaRepository.meta.first()
+                        if (meta != null && nextPage > meta.totalPages) {
+                            return MediatorResult.Success(endOfPaginationReached = true)
+                        }
+                        nextPage
                     }
-                    nextPage
                 }
             }
 
@@ -103,16 +127,26 @@ class ArticleRemoteMediator(
                 }
             }
 
-            val response = if (feedKey == "for_you" || feedKey == "firehose") {
-                // If it's firehose, it means all categories, so category = null
-                if (feedKey == "for_you") {
+            // Phase 3: a single geo/language snapshot drives every feed call this load. Reading it
+            // once (rather than per-branch) keeps the region/languages params consistent across the
+            // For-You, firehose, and category paths. Null homeRegion is omitted from the URL by
+            // Retrofit, so an undetected region degrades to the backend's neutral ranking.
+            val geo = geoLanguageRepository.state.first()
+            val region = geo.homeRegion
+            // Wave 2: the readable-language set rides alongside the region as a CSV. An
+            // empty set is omitted from the URL (null) so the backend falls back to its
+            // NULL-tolerant neutral filter rather than a "no languages" near-hard filter.
+            val languages = geo.readableLanguages.takeIf { it.isNotEmpty() }?.joinToString(",")
+
+            val response = when (feedKey) {
+                "for_you" -> {
                     val weights = algorithmPreferencesRepository.preferences.first()
                     val isDefault = weights.isNotEmpty() && weights.values.all { it == 0.2f }
-                    
+
                     if (isDefault) {
                         telemetry.info("RemoteMediator", "Unlocking Tier 2 Vector Semantic Matching (weights=null)")
                     }
-                    
+
                     // Emit the backend's CANONICAL category labels (see worker
                     // categories.rs / backend category-taxonomy.ts). The slider
                     // identities are internal (technology/general/...), so translate
@@ -120,13 +154,13 @@ class ArticleRemoteMediator(
                     // slider)→world. A mismatch here silently no-ops the weight in the
                     // For-You bandit SQL (it falls through to the ELSE 1.0 weight).
                     val weightsStr = if (isDefault) null else "tech:${weights["technology"]},politics:${weights["politics"]},world:${weights["general"]},business:${weights["business"]},health:${weights["health"]}"
-                    pulseBackendApi.getForYouFeed(page = page, limit = state.config.pageSize, weights = weightsStr)
-                } else {
-                    pulseBackendApi.getNewsFeed(page = page, limit = state.config.pageSize, category = null)
+                    pulseBackendApi.getForYouFeed(page = page, limit = state.config.pageSize, weights = weightsStr, region = region, languages = languages)
                 }
-            } else {
-                // feedKey is a specific category like "tech", "business", etc.
-                pulseBackendApi.getNewsFeed(page = page, limit = state.config.pageSize, category = feedKey)
+                // firehose = all categories (category = null); the cursor drives the seek and page is
+                // omitted so the backend takes the keyset path (REFRESH → cursor null → backend page 1).
+                "firehose" -> pulseBackendApi.getNewsFeed(page = null, limit = state.config.pageSize, category = null, region = region, languages = languages, cursor = appendCursor)
+                // a specific category like "tech", "business", … — same cursor seek.
+                else -> pulseBackendApi.getNewsFeed(page = null, limit = state.config.pageSize, category = feedKey, region = region, languages = languages, cursor = appendCursor)
             }
 
             if (response.isSuccessful) {
@@ -141,15 +175,17 @@ class ArticleRemoteMediator(
                         "Dropped $dropped/${articlesDto.size} feed articles (feedKey=$feedKey) — missing link/title"
                     )
                 }
-                // End of pagination: a short page, or the page just fetched is the last one the
-                // backend reported. Reading meta here (after the REFRESH meta-fetch above) picks up
-                // any freshly-saved totalPages.
+                // End of pagination: a short page always ends it. For page-based feeds (for_you) the
+                // reported page ceiling also ends it; for cursor feeds meta.totalPages is meaningless
+                // (the seek isn't page-addressed), so only the short-page rule applies there.
                 val meta = feedMetaRepository.meta.first()
-                val reachedLastPage = meta != null && page >= meta.totalPages
+                val reachedLastPage = !isCursorFeed && meta != null && page >= meta.totalPages
                 val endOfPaginationReached = articles.size < state.config.pageSize || reachedLastPage
                 val fetchedAt = clockProvider.nowMillis()
 
                 val entities = articles.mapIndexed { index, article ->
+                    // `page` is a true page index for for_you and a monotonic local ordinal for cursor
+                    // feeds, so this keeps sortOrder strictly increasing across appends either way.
                     val offset = (page - 1) * state.config.pageSize
                     article.toCacheEntity(
                         feedKey = feedKey,
@@ -158,10 +194,13 @@ class ArticleRemoteMediator(
                     )
                 }
 
-                // O3: persist the explicit next-page key atomically with the page's rows.
+                // O3: persist the explicit next-page key atomically with the page's rows. Cursor
+                // feeds carry the next opaque cursor (the last item's); for_you carries none.
+                // nextPage doubles as the local sortOrder ordinal for cursor feeds.
                 val nextKey = FeedRemoteKey(
                     feedKey = feedKey,
-                    nextPage = if (endOfPaginationReached) null else page + 1
+                    nextPage = if (endOfPaginationReached) null else page + 1,
+                    nextCursor = if (isCursorFeed && !endOfPaginationReached) articlesDto.lastOrNull()?.cursor else null
                 )
 
                 database.withTransaction {

@@ -10,6 +10,7 @@ import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Query
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.DELETE
 import retrofit2.http.Path
 import retrofit2.http.Body
@@ -19,18 +20,23 @@ import retrofit2.http.Headers
 interface PulseBackendApi {
     @GET("api/news")
     suspend fun getNewsFeed(
-        @Query("page") page: Int?, 
+        @Query("page") page: Int?,
         @Query("limit") limit: Int = 20,
         @Query("category") category: String? = null,
-        @Query("edition") edition: String? = null
+        @Query("edition") edition: String? = null,
+        @Query("region") region: String? = null,
+        @Query("languages") languages: String? = null,
+        @Query("cursor") cursor: String? = null
     ): Response<List<PulseArticleDto>>
 
     @Headers("X-Pulse-Auth: required")
     @GET("api/news/foryou")
     suspend fun getForYouFeed(
-        @Query("page") page: Int?, 
+        @Query("page") page: Int?,
         @Query("limit") limit: Int = 20,
-        @Query("weights") weights: String? = null
+        @Query("weights") weights: String? = null,
+        @Query("region") region: String? = null,
+        @Query("languages") languages: String? = null
     ): Response<List<PulseArticleDto>>
 
     @GET("api/news/meta")
@@ -40,7 +46,8 @@ interface PulseBackendApi {
     suspend fun searchNews(
         @Query("q") query: String,
         @Query("page") page: Int? = null,
-        @Query("limit") limit: Int = 20
+        @Query("limit") limit: Int = 20,
+        @Query("excludeId") excludeId: String? = null
     ): Response<List<PulseArticleDto>>
 
     @GET("api/news/trending")
@@ -86,4 +93,10 @@ interface PulseBackendApi {
         @Path("id") articleId: String,
         @Body request: com.example.newsapp.data.remote.dto.AiSummaryRequest
     ): Response<com.example.newsapp.data.remote.dto.AiSummaryResponse>
+
+    @Headers("X-Pulse-Auth: required")
+    @PUT("api/user/preferences")
+    suspend fun updateUserPreferences(
+        @Body request: com.example.newsapp.data.remote.dto.UpdatePreferencesRequest
+    ): Response<Unit>
 }

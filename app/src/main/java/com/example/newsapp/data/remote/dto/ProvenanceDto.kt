@@ -1,14 +1,14 @@
 package com.example.newsapp.data.remote.dto
 
-import androidx.annotation.Keep
-import com.google.gson.annotations.SerializedName
+import com.squareup.moshi.Json
+import com.squareup.moshi.JsonClass
 
-@Keep
+@JsonClass(generateAdapter = true)
 data class ProvenanceDto(
-    @SerializedName("status")
+    @Json(name = "status")
     val status: String? = null,
-    @SerializedName("verification_method")
+    @Json(name = "verification_method")
     val verificationMethod: String? = null,
-    @SerializedName("trusted_signer")
+    @Json(name = "trusted_signer")
     val trustedSigner: String? = null
 )

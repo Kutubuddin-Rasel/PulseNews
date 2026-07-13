@@ -5,8 +5,8 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.example.newsapp.Hilt.TaxonomyDataStore
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
@@ -21,8 +21,16 @@ import com.example.newsapp.domain.repository.TaxonomyRepository
 @Singleton
 class TaxonomyRepositoryImpl @Inject constructor(
     @TaxonomyDataStore private val dataStore: DataStore<Preferences>,
-    private val gson: Gson
+    moshi: Moshi
 ) : TaxonomyRepository {
+    private val dictionaryAdapter = moshi.adapter<Map<String, List<String>>>(
+        Types.newParameterizedType(
+            Map::class.java,
+            String::class.java,
+            Types.newParameterizedType(List::class.java, String::class.java)
+        )
+    )
+
     companion object {
         val KEY_TAXONOMY_JSON = stringPreferencesKey("taxonomy_json")
         val KEY_TAXONOMY_VERSION = stringPreferencesKey("taxonomy_version")
@@ -51,8 +59,7 @@ class TaxonomyRepositoryImpl @Inject constructor(
         val jsonString = prefs[KEY_TAXONOMY_JSON]
         if (jsonString != null) {
             try {
-                val type = object : TypeToken<Map<String, List<String>>>() {}.type
-                val parsed: Map<String, List<String>> = gson.fromJson(jsonString, type)
+                val parsed: Map<String, List<String>> = dictionaryAdapter.fromJson(jsonString) ?: emptyMap()
                 parsed.forEach { (k, v) -> map[CategoryKey(k)] = v }
                 map
             } catch (e: Exception) {
@@ -82,7 +89,7 @@ class TaxonomyRepositoryImpl @Inject constructor(
 
     override suspend fun saveTaxonomy(version: String, categories: Map<String, List<String>>, timestamp: Long) {
         withContext(Dispatchers.IO) {
-        val jsonString = gson.toJson(categories)
+        val jsonString = dictionaryAdapter.toJson(categories)
         dataStore.edit { prefs ->
             prefs[KEY_TAXONOMY_VERSION] = version
             prefs[KEY_TAXONOMY_JSON] = jsonString

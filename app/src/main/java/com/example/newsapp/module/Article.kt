@@ -1,7 +1,6 @@
 package com.example.newsapp.module
 
 import androidx.room.Entity
-import androidx.room.Index
 import androidx.room.PrimaryKey
 
 data class ArticleTaxonomy(
@@ -12,10 +11,10 @@ data class ArticleTaxonomy(
     val articleId: String?
 )
 
-@Entity(
-    tableName = "saved_articles",
-    indices = [Index(value = ["url"], unique = true)]
-)
+// O6: `url` is the @PrimaryKey, which Room already backs with a unique index. A second
+// explicit unique Index(["url"]) was redundant (double the write cost, no read benefit), so
+// it has been dropped.
+@Entity(tableName = "saved_articles")
 data class Article(
     @PrimaryKey
     val url: String,
